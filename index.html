@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>🧳 Packing Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-50 p-8" x-data="packerApp()" x-init="init()">
+
+<div class="max-w-4xl mx-auto space-y-8">
+    <header class="flex justify-between items-center">
+        <h1 class="text-3xl font-light">Packing Assistant</h1>
+        <!-- Progress Bar -->
+        <div class="w-64 bg-gray-200 h-4 rounded-full overflow-hidden">
+            <div class="bg-blue-600 h-full transition-all duration-500" :style="'width: ' + progress + '%'"></div>
+        </div>
+    </header>
+
+    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex gap-8">
+        <div>
+            <p class="text-xs text-gray-500 uppercase font-bold">Total Duration</p>
+            <p class="text-2xl font-bold" x-text="totalDays + ' Days'"></p>
+        </div>
+        <div>
+            <p class="text-xs text-gray-500 uppercase font-bold">Items Packed</p>
+            <p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p>
+        </div>
+        <div x-show="hasDateError" class="ml-auto text-red-600 font-bold flex items-center">
+            ⚠️ Check your dates
+        </div>
+    </div>
+
+    <!-- Itinerary -->
+    <div class="space-y-4">
+        <template x-for="(stop, index) in stops" :key="index">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end bg-white p-4 rounded-lg shadow-sm border border-gray-200 relative" 
+                 :class="{'border-red-500': stop.start && stop.end && new Date(stop.end) < new Date(stop.start)}">
+                <div class="md:col-span-2 relative">
+                    <label class="block text-xs font-bold uppercase text-gray-500">City</label>
+                    <input type="text" x-model="stop.city" @input="fetchCities(stop)" class="w-full p-2 border rounded" placeholder="Type city...">
+                    <ul x-show="stop.suggestions && stop.suggestions.length > 0" class="absolute z-10 bg-white border w-full mt-1 rounded shadow-lg max-h-40 overflow-y-auto">
+                        <template x-for="suggestion in stop.suggestions" :key="suggestion">
+                            <li @click="stop.city = suggestion; stop.suggestions = []" class="p-2 hover:bg-gray-100 cursor-pointer text-sm" x-text="suggestion"></li>
+                        </template>
+                    </ul>
+                </div>
+                <div><label class="block text-xs font-bold uppercase text-gray-500">Start</label><input type="date" x-model="stop.start" class="w-full p-2 border rounded"></div>
+                <div><label class="block text-xs font-bold uppercase text-gray-500">End</label><input type="date" x-model="stop.end" class="w-full p-2 border rounded"></div>
+                <button x-show="index > 0" @click="stops.splice(index, 1)" class="p-2 text-red-500 text-sm hover:underline">Remove</button>
+            </div>
+        </template>
+        <button @click="stops.push({city: '', start: '', end: '', suggestions: []})" class="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 text-sm font-bold uppercase tracking-widest">+ Add City</button>
+    </div>
+
+    <button @click="populateClothing()" :disabled="hasDateError" class="w-full p-4 bg-gray-900 text-white rounded-lg font-bold hover:bg-black transition-colors disabled:opacity-50">Generate Packing List</button>
+
+    <!-- Lists -->
+    <div class="grid md:grid-cols-2 gap-8" @keydown.window="handleKeys($event)">
+        <template x-for="category in ['Suitcase', 'Backpack']" :key="category">
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
+                <h2 class="font-bold mb-4 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
+                <ul class="space-y-2">
+                    <template x-for="(item, idx) in items.filter(i => i.cat === category).sort((a, b) => b.isClothing - a.isClothing)" :key="item.id">
+                        <li class="flex items-center justify-between p-2 border-b">
+                            <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isClothing && item.status === '', 'text-black': !item.isClothing && item.status === ''}">
+                                <span x-text="item.name"></span><span x-show="item.qty >= 2" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400"></span>
+                            </span>
+                            <div class="flex items-center gap-2">
+                                <button @click="item.qty > 0 ? item.qty-- : 0" class="px-2 bg-gray-100 rounded text-xs">-</button>
+                                <button @click="item.qty++" class="px-2 bg-gray-100 rounded text-xs">+</button>
+                                <button @click="toggleStatus(item)" class="w-8 h-8 rounded border transition-colors" :class="statusClass(item)" x-text="item.status || '○'"></button>
+                                <button @click="items.splice(items.findIndex(i => i.id === item.id), 1)" class="text-gray-300 hover:text-red-500 font-bold px-2">✕</button>
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+                <div class="mt-4 pt-4 border-t">
+                    <input type="text" x-model="manualInput" @keydown.enter="addManualItem(category, manualInput); manualInput=''" placeholder="+ Add Item..." class="w-full p-2 border rounded text-sm">
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <button @click="resetStatuses()" class="w-full p-4 border text-gray-600 rounded-lg font-bold hover:bg-gray-100 transition-colors">Reset All Statuses</button>
+</div>
+
+<script>
+    function packerApp() {
+        return {
+            stops: [{city: '', start: '', end: '', suggestions: []}],
+            items: [],
+            
+            init() {
+                const saved = localStorage.getItem('packingData');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    this.stops = parsed.stops || [{city: '', start: '', end: '', suggestions: []}];
+                    this.items = parsed.items || [];
+                }
+                this.$watch('items', val => localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})));
+                this.$watch('stops', val => localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})));
+            },
+            
+            get hasDateError() {
+                return this.stops.some(s => s.start && s.end && new Date(s.end) < new Date(s.start));
+            },
+
+            async fetchCities(stop) {
+                if (stop.city.length < 3) { stop.suggestions = []; return; }
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${stop.city}&addressdetails=1&limit=5`);
+                    const data = await res.json();
+                    stop.suggestions = data.map(item => item.display_name.split(',')[0] + ', ' + (item.address.country_code ? item.address.country_code.toUpperCase() : ''));
+                } catch (e) { stop.suggestions = []; }
+            },
+
+            get totalDays() {
+                return this.stops.reduce((acc, s) => {
+                    if(!s.start || !s.end || new Date(s.end) < new Date(s.start)) return acc;
+                    return acc + Math.ceil((new Date(s.end) - new Date(s.start)) / 86400000);
+                }, 0);
+            },
+            
+            get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
+            get packedCount() { return this.items.filter(i => i.status === '✓').length; },
+            get progress() { return this.activeItemsCount > 0 ? (this.packedCount / this.activeItemsCount) * 100 : 0; },
+
+            toggleStatus(item) {
+                const states = ['', '✓', 'X'];
+                item.status = states[(states.indexOf(item.status) + 1) % 3];
+            },
+
+            statusClass(item) {
+                return {
+                    'bg-green-500 text-white border-green-500': item.status === '✓',
+                    'bg-red-500 text-white border-red-500': item.status === 'X',
+                    'bg-white': item.status === ''
+                };
+            },
+
+            handleKeys(e) {
+                if (e.target.tagName === 'INPUT') return;
+                if (e.key === ' ') {
+                    e.preventDefault();
+                    if (this.items.length > 0) this.toggleStatus(this.items[0]);
+                }
+            },
+
+            addManualItem(cat, name) {
+                if(!name) return;
+                this.items.push({id: Date.now(), name: name, qty: 1, cat: cat, status: '', isClothing: false});
+            },
+
+            populateClothing() {
+                if(this.hasDateError) return;
+                const days = this.totalDays || 5;
+                const city = this.stops[0].city.toLowerCase();
+                const month = this.stops[0].start ? new Date(this.stops[0].start).getMonth() : 6;
+                const isWarm = city.includes('san diego') || city.includes('palm springs') || city.includes('miami') || (month >= 4 && month <= 7);
+
+                const newItems = [
+                    {id: Date.now() + 1, name: 'T-shirts', qty: days, cat: 'Suitcase', status: '', isClothing: true},
+                    {id: Date.now() + 2, name: 'Underwear', qty: days, cat: 'Suitcase', status: '', isClothing: true},
+                    {id: Date.now() + 3, name: 'Socks', qty: days, cat: 'Suitcase', status: '', isClothing: true},
+                    {id: Date.now() + 4, name: isWarm ? 'Shorts' : 'Pants', qty: Math.ceil(days / 2), cat: 'Suitcase', status: '', isClothing: true},
+                    {id: Date.now() + 5, name: isWarm ? 'Lightweight Hoodie' : 'Puffer Jacket', qty: 1, cat: 'Backpack', status: '', isClothing: true}
+                ];
+                this.items = [...this.items.filter(i => !i.isClothing), ...newItems];
+            },
+
+            resetStatuses() { this.items.forEach(i => i.status = ''); }
+        }
+    }
+</script>
+</body>
+</html>
