@@ -9,6 +9,9 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <style>
+        .touch-pan-y { touch-action: pan-y; }
+    </style>
 </head>
 <body class="bg-gray-50 p-4" x-data="packerApp()" x-init="init()">
 
@@ -58,16 +61,18 @@
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
                 <ul class="space-y-1" x-sort="onSort($item, $position, category)">
                     <template x-for="item in items.filter(i => i.cat === category).sort((a, b) => b.isAuto - a.isAuto)" :key="item.id">
-                        <li class="flex items-center justify-between p-2 border-b border-gray-50">
+                        <li class="flex items-center justify-between p-2 border-b border-gray-50 touch-pan-y"
+                            @swipe:left="removeItem(item)" 
+                            @swipe:right="removeItem(item)">
                             <div x-sort:item="item" class="cursor-grab text-gray-300 mr-3 hover:text-gray-500 select-none">⠿</div>
-                            <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '', 'text-black': !item.isAuto && item.status === ''}" class="text-base flex-grow">
+                            <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '', 'text-black': !item.isAuto && item.status === ''}" class="text-base flex-grow px-2 py-1">
                                 <span x-text="item.name"></span><span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1"></span>
                             </span>
                             <div class="flex items-center gap-2">
                                 <button @click="item.qty > 0 ? item.qty-- : 0" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">-</button>
                                 <button @click="item.qty++" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">+</button>
                                 <button @click="toggleStatus(item)" class="w-10 h-10 rounded-lg border-2 transition-colors text-lg" :class="statusClass(item)" x-text="item.status || '○'"></button>
-                                <button @click="items.splice(items.findIndex(i => i.id === item.id), 1)" class="text-gray-300 hover:text-red-500 text-xl px-1">✕</button>
+                                <button @click="removeItem(item)" class="text-gray-300 hover:text-red-500 text-xl px-1">✕</button>
                             </div>
                         </li>
                     </template>
@@ -93,7 +98,7 @@
                 if (saved) {
                     try {
                         const parsed = JSON.parse(saved);
-                        if (Array.isArray(parsed.items) && parsed.items.length < 100) {
+                        if (Array.isArray(parsed.items)) {
                             this.stops = parsed.stops || [{city: '', dateRange: '', start: null, end: null}];
                             this.items = parsed.items;
                         }
@@ -113,9 +118,10 @@
             initDatePicker(index) { flatpickr(`#date-input-${index}`, { mode: "range", dateFormat: "Y-m-d", onChange: (dates) => { this.stops[index].start = dates[0]; this.stops[index].end = dates[1]; } }); },
             addStop() { this.stops.push({city: '', dateRange: '', start: null, end: null}); this.$nextTick(() => this.initDatePicker(this.stops.length - 1)); },
             removeStop(index) { this.stops.splice(index, 1); },
+            removeItem(item) { const index = this.items.findIndex(i => i.id === item.id); if (index !== -1) this.items.splice(index, 1); },
             resetStatuses() { this.items.forEach(i => i.status = ''); },
 
-            get totalDays() { const days = this.stops.reduce((acc, s) => s.start && s.end ? acc + (Math.ceil((s.end - s.start) / 86400000)) : acc, 0); return days > 0 ? days + ' Days' : ''; },
+            get totalDays() { const days = this.stops.reduce((acc, s) => s.start && s.end ? acc + Math.ceil((s.end - s.start) / 86400000) : acc, 0); return days > 0 ? days + ' Days' : ''; },
             get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
             get packedCount() { return this.items.filter(i => i.status === '✓').length; },
             get progress() { return this.activeItemsCount > 0 ? (this.packedCount / this.activeItemsCount) * 100 : 0; },
@@ -132,7 +138,6 @@
 
                 this.stops.forEach(stop => {
                     if (!stop.start || !stop.end) return;
-                    // Changed to exclude the first day
                     const days = Math.ceil((stop.end - stop.start) / 86400000);
                     totalDuration += days;
                     
