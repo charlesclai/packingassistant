@@ -7,88 +7,88 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
-<body class="bg-gray-50 p-4 md:p-8" x-data="packerApp()" x-init="init()">
+<body class="bg-gray-50 p-4" x-data="packerApp()" x-init="init()">
 
-<div class="max-w-2xl mx-auto space-y-6">
-    <header class="flex flex-col gap-4">
-        <h1 class="text-4xl font-light">Packing Assistant</h1>
-        <div class="w-full bg-gray-200 h-6 rounded-full overflow-hidden">
+<div class="max-w-2xl mx-auto space-y-5">
+    <header class="flex flex-col gap-3">
+        <h1 class="text-3xl font-light">Packing Assistant</h1>
+        <div class="w-full bg-gray-200 h-4 rounded-full overflow-hidden">
             <div class="bg-blue-600 h-full transition-all duration-500" :style="'width: ' + progress + '%'"></div>
         </div>
     </header>
 
-    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex justify-between">
+    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center">
         <div>
-            <p class="text-sm text-gray-500 uppercase font-bold">Duration</p>
-            <p class="text-3xl font-bold" x-text="totalDays + ' Days'"></p>
+            <p class="text-xs text-gray-500 uppercase font-bold">Duration</p>
+            <p class="text-2xl font-bold" x-text="totalDays + ' Days'"></p>
         </div>
         <div>
-            <p class="text-sm text-gray-500 uppercase font-bold">Packed</p>
-            <p class="text-3xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p>
+            <p class="text-xs text-gray-500 uppercase font-bold">Packed</p>
+            <p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p>
         </div>
-        <div x-show="hasDateError" class="text-red-600 font-bold flex items-center text-sm">⚠️ Check dates</div>
+        <div x-show="hasDateError" class="text-red-600 font-bold text-xs">⚠️ Date Error</div>
     </div>
 
     <!-- Itinerary -->
     <div class="space-y-4">
         <template x-for="(stop, index) in stops" :key="index">
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 space-y-4" 
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3" 
                  :class="{'border-red-500': stop.start && stop.end && new Date(stop.end) < new Date(stop.start)}">
                 <div class="relative">
-                    <label class="block text-xs font-bold uppercase text-gray-500 mb-1">City</label>
-                    <input type="text" x-model="stop.city" @input="fetchCities(stop)" class="w-full p-4 text-lg border rounded-lg" placeholder="Enter city...">
-                    <ul x-show="stop.suggestions && stop.suggestions.length > 0" class="absolute z-10 bg-white border w-full mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                    <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">City</label>
+                    <input type="text" x-model="stop.city" @input="fetchCities(stop)" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
+                    <ul x-show="stop.suggestions && stop.suggestions.length > 0" class="absolute z-10 bg-white border w-full mt-1 rounded-lg shadow-xl max-h-40 overflow-y-auto">
                         <template x-for="suggestion in stop.suggestions" :key="suggestion">
-                            <li @click="stop.city = suggestion; stop.suggestions = []" class="p-4 hover:bg-gray-100 cursor-pointer text-lg" x-text="suggestion"></li>
+                            <li @click="stop.city = suggestion; stop.suggestions = []" class="p-3 hover:bg-gray-100 cursor-pointer text-base" x-text="suggestion"></li>
                         </template>
                     </ul>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Start</label>
-                        <input type="date" x-model="stop.start" class="w-full p-4 text-lg border rounded-lg">
+                        <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Start</label>
+                        <input type="date" x-model="stop.start" class="w-full p-3 text-base border rounded-lg">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">End</label>
-                        <input type="date" x-model="stop.end" class="w-full p-4 text-lg border rounded-lg">
+                        <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">End</label>
+                        <input type="date" x-model="stop.end" class="w-full p-3 text-base border rounded-lg">
                     </div>
                 </div>
-                <button x-show="index > 0" @click="stops.splice(index, 1)" class="w-full p-3 text-red-500 font-bold bg-red-50 rounded-lg">Remove Stop</button>
+                <button x-show="index > 0" @click="stops.splice(index, 1)" class="w-full p-2 text-red-500 font-bold text-sm bg-red-50 rounded-lg">Remove Stop</button>
             </div>
         </template>
-        <button @click="stops.push({city: '', start: '', end: '', suggestions: []})" class="w-full p-5 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold uppercase tracking-widest">+ Add City</button>
+        <button @click="stops.push({city: '', start: '', end: '', suggestions: []})" class="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold text-sm uppercase tracking-widest">+ Add City</button>
     </div>
 
-    <button @click="populateClothing()" :disabled="hasDateError" class="w-full p-6 bg-gray-900 text-white rounded-xl text-xl font-bold hover:bg-black transition-colors disabled:opacity-50">Generate Packing List</button>
+    <button @click="populateClothing()" :disabled="hasDateError" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold hover:bg-black transition-colors disabled:opacity-50">Generate Packing List</button>
 
     <!-- Lists -->
-    <div class="space-y-6" @keydown.window="handleKeys($event)">
+    <div class="space-y-5" @keydown.window="handleKeys($event)">
         <template x-for="category in ['Suitcase', 'Backpack']" :key="category">
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
-                <h2 class="font-bold mb-4 uppercase text-lg tracking-widest text-gray-400" x-text="category"></h2>
-                <ul class="space-y-2">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
+                <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
+                <ul class="space-y-1">
                     <template x-for="(item, idx) in items.filter(i => i.cat === category).sort((a, b) => b.isClothing - a.isClothing)" :key="item.id">
-                        <li class="flex items-center justify-between p-3 border-b border-gray-100">
-                            <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isClothing && item.status === '', 'text-black': !item.isClothing && item.status === ''}" class="text-lg">
-                                <span x-text="item.name"></span><span x-show="item.qty >= 2" x-text="' (' + item.qty + ')'" class="text-sm text-gray-400"></span>
+                        <li class="flex items-center justify-between p-2 border-b border-gray-50">
+                            <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isClothing && item.status === '', 'text-black': !item.isClothing && item.status === ''}" class="text-base">
+                                <span x-text="item.name"></span><span x-show="item.qty >= 2" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1"></span>
                             </span>
-                            <div class="flex items-center gap-3">
-                                <button @click="item.qty > 0 ? item.qty-- : 0" class="w-10 h-10 bg-gray-100 rounded-lg font-bold text-xl">-</button>
-                                <button @click="item.qty++" class="w-10 h-10 bg-gray-100 rounded-lg font-bold text-xl">+</button>
-                                <button @click="toggleStatus(item)" class="w-12 h-12 rounded-xl border-2 transition-colors text-xl" :class="statusClass(item)" x-text="item.status || '○'"></button>
-                                <button @click="items.splice(items.findIndex(i => i.id === item.id), 1)" class="text-gray-300 hover:text-red-500 text-2xl px-2">✕</button>
+                            <div class="flex items-center gap-2">
+                                <button @click="item.qty > 0 ? item.qty-- : 0" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">-</button>
+                                <button @click="item.qty++" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">+</button>
+                                <button @click="toggleStatus(item)" class="w-10 h-10 rounded-lg border-2 transition-colors text-lg" :class="statusClass(item)" x-text="item.status || '○'"></button>
+                                <button @click="items.splice(items.findIndex(i => i.id === item.id), 1)" class="text-gray-300 hover:text-red-500 text-xl px-1">✕</button>
                             </div>
                         </li>
                     </template>
                 </ul>
-                <div class="mt-6">
-                    <input type="text" x-model="manualInput" @keydown.enter="addManualItem(category, manualInput); manualInput=''" placeholder="+ Add custom item..." class="w-full p-4 text-lg border-2 rounded-xl">
+                <div class="mt-4">
+                    <input type="text" x-model="manualInput" @keydown.enter="addManualItem(category, manualInput); manualInput=''" placeholder="+ Add custom item..." class="w-full p-3 text-base border rounded-lg">
                 </div>
             </div>
         </template>
     </div>
 
-    <button @click="resetStatuses()" class="w-full p-6 border-2 text-gray-600 rounded-xl text-lg font-bold hover:bg-gray-100 transition-colors">Reset All Statuses</button>
+    <button @click="resetStatuses()" class="w-full p-5 border-2 text-gray-600 rounded-xl text-base font-bold hover:bg-gray-100 transition-colors">Reset All Statuses</button>
 </div>
 
 <script>
