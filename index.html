@@ -6,6 +6,8 @@
     <title>🧳 Packing Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body class="bg-gray-50 p-4" x-data="packerApp()" x-init="init()">
 
@@ -19,21 +21,19 @@
 
     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center">
         <div>
-            <p class="text-xs text-gray-500 uppercase font-bold">Duration</p>
-            <p class="text-2xl font-bold" x-text="totalDays + ' Days'"></p>
+            <p class="text-xs text-gray-500 uppercase font-bold">Total Duration</p>
+            <p class="text-2xl font-bold" x-text="totalDays"></p>
         </div>
         <div>
             <p class="text-xs text-gray-500 uppercase font-bold">Packed</p>
             <p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p>
         </div>
-        <div x-show="hasDateError" class="text-red-600 font-bold text-xs">⚠️ Date Error</div>
     </div>
 
     <!-- Itinerary -->
     <div class="space-y-4">
         <template x-for="(stop, index) in stops" :key="index">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3" 
-                 :class="{'border-red-500': stop.start && stop.end && new Date(stop.end) < new Date(stop.start)}">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
                 <div class="relative">
                     <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">City</label>
                     <input type="text" x-model="stop.city" @input="fetchCities(stop)" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
@@ -43,26 +43,20 @@
                         </template>
                     </ul>
                 </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Start</label>
-                        <input type="date" x-model="stop.start" class="w-full p-3 text-base border rounded-lg">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">End</label>
-                        <input type="date" x-model="stop.end" class="w-full p-3 text-base border rounded-lg">
-                    </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Travel Dates</label>
+                    <input type="text" :id="'date-input-' + index" x-model="stop.dateRange" class="w-full p-3 text-base border rounded-lg bg-white cursor-pointer" placeholder="Select range..." readonly>
                 </div>
-                <button x-show="index > 0" @click="stops.splice(index, 1)" class="w-full p-2 text-red-500 font-bold text-sm bg-red-50 rounded-lg">Remove Stop</button>
+                <button x-show="index > 0" @click="removeStop(index)" class="w-full p-2 text-red-500 font-bold text-sm bg-red-50 rounded-lg">Remove Stop</button>
             </div>
         </template>
-        <button @click="stops.push({city: '', start: '', end: '', suggestions: []})" class="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold text-sm uppercase tracking-widest">+ Add City</button>
+        <button @click="addStop()" class="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold text-sm uppercase tracking-widest">+ Add City</button>
     </div>
 
-    <button @click="populateClothing()" :disabled="hasDateError" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold hover:bg-black transition-colors disabled:opacity-50">Generate Packing List</button>
+    <button @click="populateClothing()" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold hover:bg-black transition-colors">Generate Packing List</button>
 
     <!-- Lists -->
-    <div class="space-y-5" @keydown.window="handleKeys($event)">
+    <div class="space-y-5">
         <template x-for="category in ['Suitcase', 'Backpack']" :key="category">
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
@@ -94,38 +88,56 @@
 <script>
     function packerApp() {
         return {
-            stops: [{city: '', start: '', end: '', suggestions: []}],
+            stops: [{city: '', dateRange: '', start: null, end: null, suggestions: []}],
             items: [],
             
             init() {
                 const saved = localStorage.getItem('packingData');
                 if (saved) {
                     const parsed = JSON.parse(saved);
-                    this.stops = parsed.stops || [{city: '', start: '', end: '', suggestions: []}];
+                    this.stops = parsed.stops || [{city: '', dateRange: '', start: null, end: null, suggestions: []}];
                     this.items = parsed.items || [];
                 }
+                this.$nextTick(() => this.stops.forEach((_, i) => this.initDatePicker(i)));
                 this.$watch('items', val => localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})));
                 this.$watch('stops', val => localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})));
             },
-            
-            get hasDateError() {
-                return this.stops.some(s => s.start && s.end && new Date(s.end) < new Date(s.start));
+
+            initDatePicker(index) {
+                flatpickr(`#date-input-${index}`, {
+                    mode: "range",
+                    dateFormat: "Y-m-d",
+                    onChange: (dates) => {
+                        this.stops[index].start = dates[0];
+                        this.stops[index].end = dates[1];
+                    }
+                });
+            },
+
+            addStop() {
+                this.stops.push({city: '', dateRange: '', start: null, end: null, suggestions: []});
+                this.$nextTick(() => this.initDatePicker(this.stops.length - 1));
+            },
+
+            removeStop(index) {
+                this.stops.splice(index, 1);
             },
 
             async fetchCities(stop) {
                 if (stop.city.length < 3) { stop.suggestions = []; return; }
                 try {
-                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${stop.city}&addressdetails=1&limit=5`);
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${stop.city}&limit=5`);
                     const data = await res.json();
-                    stop.suggestions = data.map(item => item.display_name.split(',')[0] + ', ' + (item.address.country_code ? item.address.country_code.toUpperCase() : ''));
+                    stop.suggestions = data.map(i => i.display_name.split(',')[0]);
                 } catch (e) { stop.suggestions = []; }
             },
 
             get totalDays() {
-                return this.stops.reduce((acc, s) => {
-                    if(!s.start || !s.end || new Date(s.end) < new Date(s.start)) return acc;
-                    return acc + Math.ceil((new Date(s.end) - new Date(s.start)) / 86400000);
+                const days = this.stops.reduce((acc, s) => {
+                    if(!s.start || !s.end) return acc;
+                    return acc + Math.ceil((s.end - s.start) / 86400000);
                 }, 0);
+                return days > 0 ? days + ' Days' : '';
             },
             
             get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
@@ -145,32 +157,16 @@
                 };
             },
 
-            handleKeys(e) {
-                if (e.target.tagName === 'INPUT') return;
-                if (e.key === ' ') {
-                    e.preventDefault();
-                    if (this.items.length > 0) this.toggleStatus(this.items[0]);
-                }
-            },
-
             addManualItem(cat, name) {
                 if(!name) return;
                 this.items.push({id: Date.now(), name: name, qty: 1, cat: cat, status: '', isClothing: false});
             },
 
             populateClothing() {
-                if(this.hasDateError) return;
-                const days = this.totalDays || 5;
-                const city = this.stops[0].city.toLowerCase();
-                const month = this.stops[0].start ? new Date(this.stops[0].start).getMonth() : 6;
-                const isWarm = city.includes('san diego') || city.includes('palm springs') || city.includes('miami') || (month >= 4 && month <= 7);
-
+                const days = parseInt(this.totalDays) || 5;
                 const newItems = [
                     {id: Date.now() + 1, name: 'T-shirts', qty: days, cat: 'Suitcase', status: '', isClothing: true},
-                    {id: Date.now() + 2, name: 'Underwear', qty: days, cat: 'Suitcase', status: '', isClothing: true},
-                    {id: Date.now() + 3, name: 'Socks', qty: days, cat: 'Suitcase', status: '', isClothing: true},
-                    {id: Date.now() + 4, name: isWarm ? 'Shorts' : 'Pants', qty: Math.ceil(days / 2), cat: 'Suitcase', status: '', isClothing: true},
-                    {id: Date.now() + 5, name: isWarm ? 'Lightweight Hoodie' : 'Puffer Jacket', qty: 1, cat: 'Backpack', status: '', isClothing: true}
+                    {id: Date.now() + 2, name: 'Underwear', qty: days, cat: 'Suitcase', status: '', isClothing: true}
                 ];
                 this.items = [...this.items.filter(i => !i.isClothing), ...newItems];
             },
