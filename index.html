@@ -27,7 +27,6 @@
         </div>
         <div>
             <p class="text-xs text-gray-500 uppercase font-bold">Packed</p>
-            <!-- Fixed: Now correctly calculating based on current list state -->
             <p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p>
         </div>
     </div>
@@ -57,11 +56,13 @@
         <template x-for="category in ['Suitcase', 'Backpack']" :key="category">
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
-                
                 <ul class="space-y-1" x-sort="onSort($item, $position, category)">
                     <template x-for="item in items.filter(i => i.cat === category).sort((a, b) => b.isAuto - a.isAuto)" :key="item.id">
-                        <li x-sort:item="item" class="flex items-center justify-between p-2 border-b border-gray-50 cursor-move">
-                            <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '', 'text-black': !item.isAuto && item.status === ''}" class="text-base">
+                        <li class="flex items-center justify-between p-2 border-b border-gray-50">
+                            <!-- Drag Handle -->
+                            <div x-sort:item="item" class="cursor-grab text-gray-300 mr-3 hover:text-gray-500 select-none">⠿</div>
+                            
+                            <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '', 'text-black': !item.isAuto && item.status === ''}" class="text-base flex-grow">
                                 <span x-text="item.name"></span><span x-show="item.qty >= 2" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1"></span>
                             </span>
                             <div class="flex items-center gap-2">
@@ -79,8 +80,6 @@
             </div>
         </template>
     </div>
-
-    <button @click="resetStatuses()" class="w-full p-5 border-2 text-gray-600 rounded-xl text-base font-bold hover:bg-gray-100 transition-colors">Reset All Statuses</button>
 </div>
 
 <script>
@@ -92,14 +91,16 @@
             init() {
                 const saved = localStorage.getItem('packingData');
                 if (saved) {
-                    const parsed = JSON.parse(saved);
-                    this.stops = parsed.stops || [{city: '', dateRange: '', start: null, end: null}];
-                    // Ensure items is an array[cite: 1]
-                    this.items = Array.isArray(parsed.items) ? parsed.items : [];
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed.items) && parsed.items.length < 100) {
+                            this.stops = parsed.stops || [{city: '', dateRange: '', start: null, end: null}];
+                            this.items = parsed.items;
+                        }
+                    } catch (e) { localStorage.removeItem('packingData'); }
                 }
                 this.$nextTick(() => this.stops.forEach((_, i) => this.initDatePicker(i)));
                 this.$watch('items', val => localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})));
-                this.$watch('stops', val => localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})));
             },
 
             onSort(item, position, newCategory) {
@@ -109,19 +110,11 @@
                 this.items.splice(position, 0, item);
             },
 
-            initDatePicker(index) {
-                flatpickr(`#date-input-${index}`, { mode: "range", dateFormat: "Y-m-d", onChange: (dates) => { this.stops[index].start = dates[0]; this.stops[index].end = dates[1]; } });
-            },
-
+            initDatePicker(index) { flatpickr(`#date-input-${index}`, { mode: "range", dateFormat: "Y-m-d", onChange: (dates) => { this.stops[index].start = dates[0]; this.stops[index].end = dates[1]; } }); },
             addStop() { this.stops.push({city: '', dateRange: '', start: null, end: null}); this.$nextTick(() => this.initDatePicker(this.stops.length - 1)); },
             removeStop(index) { this.stops.splice(index, 1); },
 
-            get totalDays() {
-                const days = this.stops.reduce((acc, s) => s.start && s.end ? acc + Math.ceil((s.end - s.start) / 86400000) : acc, 0);
-                return days > 0 ? days + ' Days' : '';
-            },
-            
-            // Updated getters to filter only valid current items[cite: 1]
+            get totalDays() { const days = this.stops.reduce((acc, s) => s.start && s.end ? acc + Math.ceil((s.end - s.start) / 86400000) : acc, 0); return days > 0 ? days + ' Days' : ''; },
             get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
             get packedCount() { return this.items.filter(i => i.status === '✓').length; },
             get progress() { return this.activeItemsCount > 0 ? (this.packedCount / this.activeItemsCount) * 100 : 0; },
@@ -129,13 +122,10 @@
             toggleStatus(item) { const states = ['', '✓', 'X']; item.status = states[(states.indexOf(item.status) + 1) % 3]; },
             statusClass(item) { return {'bg-green-500 text-white border-green-500': item.status === '✓', 'bg-red-500 text-white border-red-500': item.status === 'X', 'bg-white': item.status === ''}; },
             addManualItem(cat, name) { if(!name) return; this.items.push({id: Date.now(), name: name, qty: 1, cat: cat, status: '', isAuto: false}); },
-
             populateClothing() {
                 const days = parseInt(this.totalDays) || 5;
                 const city = this.stops[0]?.city.toLowerCase() || '';
-                const month = this.stops[0]?.start ? new Date(this.stops[0].start).getMonth() : 6;
-                const isWarm = city.includes('san diego') || city.includes('palm springs') || city.includes('miami') || (month >= 4 && month <= 7);
-
+                const isWarm = city.includes('san diego') || city.includes('palm springs') || city.includes('miami');
                 const newItems = [
                     {id: Date.now() + 1, name: 'T-shirts', qty: days, cat: 'Suitcase', status: '', isAuto: true},
                     {id: Date.now() + 2, name: 'Underwear', qty: days, cat: 'Suitcase', status: '', isAuto: true},
@@ -143,10 +133,8 @@
                     {id: Date.now() + 4, name: isWarm ? 'Shorts' : 'Pants', qty: Math.ceil(days / 2), cat: 'Suitcase', status: '', isAuto: true},
                     {id: Date.now() + 5, name: isWarm ? 'Lightweight Hoodie' : 'Puffer Jacket', qty: 1, cat: 'Backpack', status: '', isAuto: true}
                 ];
-                // Keep only manually added items (isAuto: false) when regenerating[cite: 1]
                 this.items = [...this.items.filter(i => !i.isAuto), ...newItems];
-            },
-            resetStatuses() { this.items.forEach(i => i.status = ''); }
+            }
         }
     }
 </script>
