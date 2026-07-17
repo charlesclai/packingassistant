@@ -59,11 +59,9 @@
                 <ul class="space-y-1" x-sort="onSort($item, $position, category)">
                     <template x-for="item in items.filter(i => i.cat === category).sort((a, b) => b.isAuto - a.isAuto)" :key="item.id">
                         <li class="flex items-center justify-between p-2 border-b border-gray-50">
-                            <!-- Drag Handle -->
                             <div x-sort:item="item" class="cursor-grab text-gray-300 mr-3 hover:text-gray-500 select-none">⠿</div>
-                            
                             <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '', 'text-black': !item.isAuto && item.status === ''}" class="text-base flex-grow">
-                                <span x-text="item.name"></span><span x-show="item.qty >= 2" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1"></span>
+                                <span x-text="item.name"></span><span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1"></span>
                             </span>
                             <div class="flex items-center gap-2">
                                 <button @click="item.qty > 0 ? item.qty-- : 0" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">-</button>
@@ -80,6 +78,8 @@
             </div>
         </template>
     </div>
+
+    <button @click="resetStatuses()" class="w-full p-4 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm uppercase tracking-widest hover:bg-gray-100">Reset All Statuses</button>
 </div>
 
 <script>
@@ -113,8 +113,9 @@
             initDatePicker(index) { flatpickr(`#date-input-${index}`, { mode: "range", dateFormat: "Y-m-d", onChange: (dates) => { this.stops[index].start = dates[0]; this.stops[index].end = dates[1]; } }); },
             addStop() { this.stops.push({city: '', dateRange: '', start: null, end: null}); this.$nextTick(() => this.initDatePicker(this.stops.length - 1)); },
             removeStop(index) { this.stops.splice(index, 1); },
+            resetStatuses() { this.items.forEach(i => i.status = ''); },
 
-            get totalDays() { const days = this.stops.reduce((acc, s) => s.start && s.end ? acc + Math.ceil((s.end - s.start) / 86400000) : acc, 0); return days > 0 ? days + ' Days' : ''; },
+            get totalDays() { const days = this.stops.reduce((acc, s) => s.start && s.end ? acc + (Math.ceil((s.end - s.start) / 86400000)) : acc, 0); return days > 0 ? days + ' Days' : ''; },
             get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
             get packedCount() { return this.items.filter(i => i.status === '✓').length; },
             get progress() { return this.activeItemsCount > 0 ? (this.packedCount / this.activeItemsCount) * 100 : 0; },
@@ -122,17 +123,45 @@
             toggleStatus(item) { const states = ['', '✓', 'X']; item.status = states[(states.indexOf(item.status) + 1) % 3]; },
             statusClass(item) { return {'bg-green-500 text-white border-green-500': item.status === '✓', 'bg-red-500 text-white border-red-500': item.status === 'X', 'bg-white': item.status === ''}; },
             addManualItem(cat, name) { if(!name) return; this.items.push({id: Date.now(), name: name, qty: 1, cat: cat, status: '', isAuto: false}); },
+            
             populateClothing() {
-                const days = parseInt(this.totalDays) || 5;
-                const city = this.stops[0]?.city.toLowerCase() || '';
-                const isWarm = city.includes('san diego') || city.includes('palm springs') || city.includes('miami');
-                const newItems = [
-                    {id: Date.now() + 1, name: 'T-shirts', qty: days, cat: 'Suitcase', status: '', isAuto: true},
-                    {id: Date.now() + 2, name: 'Underwear', qty: days, cat: 'Suitcase', status: '', isAuto: true},
-                    {id: Date.now() + 3, name: 'Socks', qty: days, cat: 'Suitcase', status: '', isAuto: true},
-                    {id: Date.now() + 4, name: isWarm ? 'Shorts' : 'Pants', qty: Math.ceil(days / 2), cat: 'Suitcase', status: '', isAuto: true},
-                    {id: Date.now() + 5, name: isWarm ? 'Lightweight Hoodie' : 'Puffer Jacket', qty: 1, cat: 'Backpack', status: '', isAuto: true}
+                let totalDuration = 0;
+                let shortsTotalDays = 0;
+                let pantsTotalDays = 0;
+                let outerList = new Set();
+
+                this.stops.forEach(stop => {
+                    if (!stop.start || !stop.end) return;
+                    // Changed to exclude the first day
+                    const days = Math.ceil((stop.end - stop.start) / 86400000);
+                    totalDuration += days;
+                    
+                    const month = new Date(stop.start).getMonth();
+                    const isCold = month <= 2 || month >= 10;
+                    const city = stop.city.toLowerCase();
+                    const isWarmCity = city.includes('san diego') || city.includes('palm springs') || city.includes('miami');
+                    
+                    if (isCold && !isWarmCity) {
+                        pantsTotalDays += days;
+                        outerList.add('Puffer Jacket');
+                    } else {
+                        shortsTotalDays += days;
+                        outerList.add('Light Hoodie');
+                    }
+                });
+                
+                let newItems = [
+                    {id: 1, name: 'T-shirts', qty: totalDuration, cat: 'Suitcase', status: '', isAuto: true},
+                    {id: 2, name: 'Underwear', qty: totalDuration, cat: 'Suitcase', status: '', isAuto: true},
+                    {id: 3, name: 'Socks', qty: totalDuration, cat: 'Suitcase', status: '', isAuto: true}
                 ];
+
+                if (shortsTotalDays > 0) newItems.push({id: 4, name: 'Shorts', qty: Math.ceil(shortsTotalDays / 2.5), cat: 'Suitcase', status: '', isAuto: true});
+                if (pantsTotalDays > 0) newItems.push({id: 5, name: 'Pants', qty: Math.ceil(pantsTotalDays / 2.5), cat: 'Suitcase', status: '', isAuto: true});
+                outerList.forEach((name, idx) => {
+                    newItems.push({id: 10 + idx, name: name, qty: 1, cat: 'Backpack', status: '', isAuto: true});
+                });
+                
                 this.items = [...this.items.filter(i => !i.isAuto), ...newItems];
             }
         }
