@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🧳 Packing Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs-swipe@1.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/sort@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -62,14 +63,14 @@
                 <ul class="space-y-1" x-sort="onSort($item, $position, category)">
                     <template x-for="item in items.filter(i => i.cat === category).sort((a, b) => b.isAuto - a.isAuto)" :key="item.id">
                         <li class="flex items-center justify-between p-2 border-b border-gray-50 touch-pan-y"
-                            @swipe:left="removeItem(item)" 
-                            @swipe:right="removeItem(item)">
+                            x-swipe:left="removeItem(item)" 
+                            x-swipe:right="removeItem(item)">
                             <div x-sort:item="item" class="cursor-grab text-gray-300 mr-3 hover:text-gray-500 select-none">⠿</div>
                             <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '', 'text-black': !item.isAuto && item.status === ''}" class="text-base flex-grow px-2 py-1">
-                                <span x-text="item.name"></span><span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1"></span>
+                                <span x-text="item.name"></span><span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
                             </span>
                             <div class="flex items-center gap-2">
-                                <button @click="item.qty > 0 ? item.qty-- : 0" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">-</button>
+                                <button @click="item.qty > 1 ? item.qty-- : 1" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">-</button>
                                 <button @click="item.qty++" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">+</button>
                                 <button @click="toggleStatus(item)" class="w-10 h-10 rounded-lg border-2 transition-colors text-lg" :class="statusClass(item)" x-text="item.status || '○'"></button>
                                 <button @click="removeItem(item)" class="text-gray-300 hover:text-red-500 text-xl px-1">✕</button>
@@ -156,13 +157,17 @@
                 });
                 
                 let newItems = [
-                    {id: 1, name: 'T-shirts', qty: totalDuration, cat: 'Suitcase', status: '', isAuto: true},
-                    {id: 2, name: 'Underwear', qty: totalDuration, cat: 'Suitcase', status: '', isAuto: true},
-                    {id: 3, name: 'Socks', qty: totalDuration, cat: 'Suitcase', status: '', isAuto: true}
+                    {id: 1, name: 'T-shirts', qty: Math.max(1, totalDuration), cat: 'Suitcase', status: '', isAuto: true}
                 ];
 
-                if (shortsTotalDays > 0) newItems.push({id: 4, name: 'Shorts', qty: Math.ceil(shortsTotalDays / 2.5), cat: 'Suitcase', status: '', isAuto: true});
-                if (pantsTotalDays > 0) newItems.push({id: 5, name: 'Pants', qty: Math.ceil(pantsTotalDays / 2.5), cat: 'Suitcase', status: '', isAuto: true});
+                if (shortsTotalDays > 0) newItems.push({id: 4, name: 'Shorts', qty: Math.max(1, Math.ceil(shortsTotalDays / 2.5)), cat: 'Suitcase', status: '', isAuto: true});
+                if (pantsTotalDays > 0) newItems.push({id: 5, name: 'Pants', qty: Math.max(1, Math.ceil(pantsTotalDays / 2.5)), cat: 'Suitcase', status: '', isAuto: true});
+                
+                newItems.push(
+                    {id: 2, name: 'Underwear', qty: Math.max(1, totalDuration), cat: 'Suitcase', status: '', isAuto: true},
+                    {id: 3, name: 'Socks', qty: Math.max(1, totalDuration), cat: 'Suitcase', status: '', isAuto: true}
+                );
+
                 outerList.forEach((name, idx) => {
                     newItems.push({id: 10 + idx, name: name, qty: 1, cat: 'Backpack', status: '', isAuto: true});
                 });
