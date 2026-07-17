@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🧳 Packing Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/sort@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -26,6 +27,7 @@
         </div>
         <div>
             <p class="text-xs text-gray-500 uppercase font-bold">Packed</p>
+            <!-- Fixed: Now correctly calculating based on current list state -->
             <p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p>
         </div>
     </div>
@@ -55,13 +57,10 @@
         <template x-for="category in ['Suitcase', 'Backpack']" :key="category">
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
-                <ul class="space-y-1">
-                    <template x-for="(item, idx) in items.filter(i => i.cat === category).sort((a, b) => b.isAuto - a.isAuto)" :key="item.id">
-                        <li class="flex items-center justify-between p-2 border-b border-gray-50 cursor-move"
-                            draggable="true"
-                            @dragstart="dragged = item"
-                            @dragover.prevent
-                            @drop="drop(item, category)">
+                
+                <ul class="space-y-1" x-sort="onSort($item, $position, category)">
+                    <template x-for="item in items.filter(i => i.cat === category).sort((a, b) => b.isAuto - a.isAuto)" :key="item.id">
+                        <li x-sort:item="item" class="flex items-center justify-between p-2 border-b border-gray-50 cursor-move">
                             <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '', 'text-black': !item.isAuto && item.status === ''}" class="text-base">
                                 <span x-text="item.name"></span><span x-show="item.qty >= 2" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1"></span>
                             </span>
@@ -89,28 +88,25 @@
         return {
             stops: [{city: '', dateRange: '', start: null, end: null}],
             items: [],
-            dragged: null,
             
             init() {
                 const saved = localStorage.getItem('packingData');
                 if (saved) {
                     const parsed = JSON.parse(saved);
                     this.stops = parsed.stops || [{city: '', dateRange: '', start: null, end: null}];
-                    this.items = parsed.items || [];
+                    // Ensure items is an array[cite: 1]
+                    this.items = Array.isArray(parsed.items) ? parsed.items : [];
                 }
                 this.$nextTick(() => this.stops.forEach((_, i) => this.initDatePicker(i)));
                 this.$watch('items', val => localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})));
                 this.$watch('stops', val => localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})));
             },
 
-            drop(targetItem, category) {
-                if (!this.dragged) return;
-                const fromIdx = this.items.indexOf(this.dragged);
-                const toIdx = this.items.indexOf(targetItem);
-                this.items.splice(fromIdx, 1);
-                this.items.splice(toIdx, 0, this.dragged);
-                this.dragged.cat = category;
-                this.dragged = null;
+            onSort(item, position, newCategory) {
+                const oldIndex = this.items.indexOf(item);
+                this.items.splice(oldIndex, 1);
+                item.cat = newCategory;
+                this.items.splice(position, 0, item);
             },
 
             initDatePicker(index) {
@@ -125,6 +121,7 @@
                 return days > 0 ? days + ' Days' : '';
             },
             
+            // Updated getters to filter only valid current items[cite: 1]
             get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
             get packedCount() { return this.items.filter(i => i.status === '✓').length; },
             get progress() { return this.activeItemsCount > 0 ? (this.packedCount / this.activeItemsCount) * 100 : 0; },
@@ -146,7 +143,8 @@
                     {id: Date.now() + 4, name: isWarm ? 'Shorts' : 'Pants', qty: Math.ceil(days / 2), cat: 'Suitcase', status: '', isAuto: true},
                     {id: Date.now() + 5, name: isWarm ? 'Lightweight Hoodie' : 'Puffer Jacket', qty: 1, cat: 'Backpack', status: '', isAuto: true}
                 ];
-                this.items = [...this.items.filter(i => !i.isAuto), ...newItems, ...this.items.filter(i => !i.isAuto)];
+                // Keep only manually added items (isAuto: false) when regenerating[cite: 1]
+                this.items = [...this.items.filter(i => !i.isAuto), ...newItems];
             },
             resetStatuses() { this.items.forEach(i => i.status = ''); }
         }
