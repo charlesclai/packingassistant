@@ -164,9 +164,16 @@
 
             populateClothing() {
                 const days = parseInt(this.totalDays) || 5;
+                const city = this.stops[0].city.toLowerCase();
+                const month = this.stops[0].start ? new Date(this.stops[0].start).getMonth() : 6;
+                const isWarm = city.includes('san diego') || city.includes('palm springs') || city.includes('miami') || (month >= 4 && month <= 7);
+
                 const newItems = [
                     {id: Date.now() + 1, name: 'T-shirts', qty: days, cat: 'Suitcase', status: '', isClothing: true},
-                    {id: Date.now() + 2, name: 'Underwear', qty: days, cat: 'Suitcase', status: '', isClothing: true}
+                    {id: Date.now() + 2, name: 'Underwear', qty: days, cat: 'Suitcase', status: '', isClothing: true},
+                    {id: Date.now() + 3, name: 'Socks', qty: days, cat: 'Suitcase', status: '', isClothing: true},
+                    {id: Date.now() + 4, name: isWarm ? 'Shorts' : 'Pants', qty: Math.ceil(days / 2), cat: 'Suitcase', status: '', isClothing: true},
+                    {id: Date.now() + 5, name: isWarm ? 'Lightweight Hoodie' : 'Puffer Jacket', qty: 1, cat: 'Backpack', status: '', isClothing: true}
                 ];
                 this.items = [...this.items.filter(i => !i.isClothing), ...newItems];
             },
