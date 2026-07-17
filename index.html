@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🧳 Packing Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://unpkg.com/alpinejs-swipe@1.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/sort@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -63,8 +62,8 @@
                 <ul class="space-y-1" x-sort="onSort($item, $position, category)">
                     <template x-for="item in items.filter(i => i.cat === category).sort((a, b) => b.isAuto - a.isAuto)" :key="item.id">
                         <li class="flex items-center justify-between p-2 border-b border-gray-50 touch-pan-y"
-                            x-swipe:left="removeItem(item)" 
-                            x-swipe:right="removeItem(item)">
+                            @touchstart="touchStart($event)"
+                            @touchend="touchEnd($event, item)">
                             <div x-sort:item="item" class="cursor-grab text-gray-300 mr-3 hover:text-gray-500 select-none">⠿</div>
                             <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '', 'text-black': !item.isAuto && item.status === ''}" class="text-base flex-grow px-2 py-1">
                                 <span x-text="item.name"></span><span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
@@ -93,6 +92,7 @@
         return {
             stops: [{city: '', dateRange: '', start: null, end: null}],
             items: [],
+            touchX: 0,
             
             init() {
                 const saved = localStorage.getItem('packingData');
@@ -121,6 +121,9 @@
             removeStop(index) { this.stops.splice(index, 1); },
             removeItem(item) { const index = this.items.findIndex(i => i.id === item.id); if (index !== -1) this.items.splice(index, 1); },
             resetStatuses() { this.items.forEach(i => i.status = ''); },
+            
+            touchStart(e) { this.touchX = e.changedTouches[0].screenX; },
+            touchEnd(e, item) { const endX = e.changedTouches[0].screenX; if (Math.abs(this.touchX - endX) > 100) this.removeItem(item); },
 
             get totalDays() { const days = this.stops.reduce((acc, s) => s.start && s.end ? acc + Math.ceil((s.end - s.start) / 86400000) : acc, 0); return days > 0 ? days + ' Days' : ''; },
             get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
