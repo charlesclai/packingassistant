@@ -8,7 +8,11 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <style>.swipe-item { transition: transform 0.1s ease-out; touch-action: pan-y; }</style>
+    <style>
+        .swipe-container { position: relative; overflow: hidden; background: #fee2e2; border-bottom: 1px solid #f3f4f6; }
+        .swipe-item { position: relative; z-index: 10; transition: transform 0.1s ease-out; touch-action: pan-y; }
+        .swipe-action { position: absolute; right: 0; top: 0; height: 100%; width: 100px; display: flex; align-items: center; justify-content: flex-end; padding-right: 20px; color: #dc2626; z-index: 1; font-size: 1.5rem; }
+    </style>
 </head>
 <body class="bg-gray-50 p-4">
 
@@ -25,7 +29,6 @@
         <div><p class="text-xs text-gray-500 uppercase font-bold">Packed</p><p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p></div>
     </div>
 
-    <!-- Itinerary -->
     <div class="space-y-4">
         <template x-for="(stop, index) in stops" :key="index">
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
@@ -41,29 +44,31 @@
         <span x-text="loading ? 'Analyzing Destination...' : 'Generate Packing List'"></span>
     </button>
 
-    <!-- Lists -->
     <div class="space-y-5">
         <template x-for="category in ['Suitcase', 'Backpack', 'Toiletries']" :key="category">
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
-                <ul class="space-y-1 overflow-hidden">
-                    <template x-for="(item, index) in items.filter(i => i.cat === category).sort((a,b) => b.isAuto - a.isAuto)" :key="item.id">
-                        <li class="flex items-center gap-3 p-2 border-b border-gray-50 swipe-item"
-                            @touchstart="touchStart($event)" @touchend="touchEnd($event, item, $el)">
-                            <div class="flex gap-1">
-                                <button @click="moveItem(item, -1, category)" class="text-gray-300 hover:text-blue-600">▲</button>
-                                <button @click="moveItem(item, 1, category)" class="text-gray-300 hover:text-blue-600">▼</button>
-                            </div>
-                            <span :class="{'line-through text-gray-400': item.status === '✓' || item.status === 'X', 'font-bold text-blue-600': item.isAuto && item.status === ''}" class="flex-grow">
-                                <span x-text="item.name"></span>
-                                <span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
-                            </span>
-                            <div class="flex items-center gap-1">
-                                <button @click="item.qty > 1 ? item.qty-- : 1" class="w-6 h-6 bg-gray-100 rounded">-</button>
-                                <button @click="item.qty++" class="w-6 h-6 bg-gray-100 rounded">+</button>
-                                <button @click="toggleStatus(item)" class="w-8 h-8 rounded border-2 flex items-center justify-center font-bold" 
-                                    :class="{'bg-green-500 border-green-500 text-white': item.status === '✓', 'bg-red-500 border-red-500 text-white': item.status === 'X'}" 
-                                    x-text="item.status || '○'"></button>
+                <ul class="space-y-1">
+                    <template x-for="item in items.filter(i => i.cat === category).sort((a,b) => b.isAuto - a.isAuto)" :key="item.id">
+                        <li class="swipe-container">
+                            <div class="swipe-action">🗑️</div>
+                            <div class="swipe-item flex items-center gap-3 p-2 bg-white"
+                                @touchstart="touchStart($event)" @touchmove="touchMove($event, $el)" @touchend="touchEnd($event, item, $el)">
+                                <div class="flex flex-col">
+                                    <button @click="moveItem(item, -1, category)" class="text-gray-300 hover:text-blue-600">▲</button>
+                                    <button @click="moveItem(item, 1, category)" class="text-gray-300 hover:text-blue-600">▼</button>
+                                </div>
+                                <span :class="{'line-through text-gray-400': item.status === '✓' || item.status === 'X', 'font-bold text-blue-600': item.isAuto && item.status === ''}" class="flex-grow">
+                                    <span x-text="item.name"></span>
+                                    <span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
+                                </span>
+                                <div class="flex items-center gap-1">
+                                    <button @click="item.qty > 1 ? item.qty-- : 1" class="w-6 h-6 bg-gray-100 rounded">-</button>
+                                    <button @click="item.qty++" class="w-6 h-6 bg-gray-100 rounded">+</button>
+                                    <button @click="toggleStatus(item)" class="w-8 h-8 rounded border-2 flex items-center justify-center font-bold" 
+                                        :class="{'bg-green-500 border-green-500 text-white': item.status === '✓', 'bg-red-500 border-red-500 text-white': item.status === 'X'}" 
+                                        x-text="item.status || '○'"></button>
+                                </div>
                             </div>
                         </li>
                     </template>
@@ -101,7 +106,8 @@
                 }
             },
             touchStart(e) { this.touchStartX = e.touches[0].clientX; },
-            touchEnd(e, item, el) { if (this.touchStartX - e.changedTouches[0].clientX > 100) this.items = this.items.filter(i => i.id !== item.id); },
+            touchMove(e, el) { const diff = e.touches[0].clientX - this.touchStartX; if (diff < 0) el.style.transform = `translateX(${diff}px)`; },
+            touchEnd(e, item, el) { if (this.touchStartX - e.changedTouches[0].clientX > 100) this.items = this.items.filter(i => i.id !== item.id); else el.style.transform = 'translateX(0)'; },
             async populateData() {
                 this.loading = true;
                 const days = Math.max(1, parseInt(this.totalDays) || 1);
