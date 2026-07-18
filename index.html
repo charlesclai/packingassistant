@@ -17,34 +17,38 @@
 <body class="bg-gray-50 p-4">
 
 <div class="max-w-2xl mx-auto space-y-5" x-data="packerApp()" x-init="init()">
-    <header class="flex flex-col gap-3">
+    <header class="flex justify-between items-center">
         <h1 class="text-3xl font-light">Packing Assistant</h1>
+        <button @click="toggleView()" 
+                class="text-xs font-bold uppercase bg-gray-200 px-3 py-1 rounded-full"
+                x-text="view === 'list' ? 'Weather Forecast' : 'Back to List'"></button>
+    </header>
+
+    <div x-show="view === 'list'" class="space-y-5">
         <div class="w-full bg-gray-200 h-4 rounded-full overflow-hidden">
             <div class="h-full transition-all duration-500" :class="progress === 100 ? 'bg-green-500' : 'bg-blue-600'" :style="'width: ' + progress + '%'"></div>
         </div>
-    </header>
 
-    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center">
-        <div><p class="text-xs text-gray-500 uppercase font-bold">Total Duration</p><p class="text-2xl font-bold" x-text="totalDays ? totalDays + ' Days' : ''"></p></div>
-        <div><p class="text-xs text-gray-500 uppercase font-bold">Packed</p><p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p></div>
-    </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center">
+            <div><p class="text-xs text-gray-500 uppercase font-bold">Total Duration</p><p class="text-2xl font-bold" x-text="totalDays + ' Days'"></p></div>
+            <div><p class="text-xs text-gray-500 uppercase font-bold">Packed</p><p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p></div>
+        </div>
 
-    <div class="space-y-4">
-        <template x-for="(stop, index) in stops" :key="index">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
-                <input type="text" x-model="stop.city" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
-                <input type="text" :id="'date-input-' + index" x-model="stop.dateRange" class="w-full p-3 text-base border rounded-lg bg-white" placeholder="Select dates..." readonly>
-                <button x-show="index > 0" @click="removeStop(index)" class="w-full p-2 text-red-500 font-bold text-sm bg-red-50 rounded-lg">Remove Stop</button>
-            </div>
-        </template>
-        <button @click="addStop()" class="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold text-sm uppercase">+ Add City</button>
-    </div>
+        <div class="space-y-4">
+            <template x-for="(stop, index) in stops" :key="index">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
+                    <input type="text" x-model="stop.city" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
+                    <input type="text" :id="'date-input-' + index" x-model="stop.dateRange" class="w-full p-3 text-base border rounded-lg bg-white" placeholder="Select dates..." readonly>
+                    <button x-show="index > 0" @click="removeStop(index)" class="w-full p-2 text-red-500 font-bold text-sm bg-red-50 rounded-lg">Remove Stop</button>
+                </div>
+            </template>
+            <button @click="addStop()" class="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold text-sm uppercase">+ Add City</button>
+        </div>
 
-    <button @click="populateData()" :disabled="loading" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold">
-        <span x-text="loading ? 'Analyzing Destination...' : 'Generate Packing List'"></span>
-    </button>
+        <button @click="populateData()" :disabled="loading" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold">
+            <span x-text="loading ? 'Analyzing Destination...' : 'Generate Packing List'"></span>
+        </button>
 
-    <div class="space-y-5">
         <template x-for="category in ['Suitcase', 'Backpack', 'Toiletries']" :key="category">
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
@@ -54,10 +58,6 @@
                             <div class="swipe-action">🗑️</div>
                             <div class="swipe-item flex items-center gap-3 p-2 bg-white"
                                 @touchstart="touchStart($event)" @touchmove="touchMove($event, $el)" @touchend="touchEnd($event, item, $el)">
-                                <div class="flex flex-col">
-                                    <button @click="moveItem(item, -1, category)" class="text-gray-300 hover:text-blue-600">▲</button>
-                                    <button @click="moveItem(item, 1, category)" class="text-gray-300 hover:text-blue-600">▼</button>
-                                </div>
                                 <span :class="{'line-through text-gray-400': item.status === '✓' || item.status === 'X', 'font-bold text-blue-600': item.isAuto && item.status === ''}" class="flex-grow">
                                     <span x-text="item.name"></span>
                                     <span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
@@ -78,57 +78,136 @@
         </template>
     </div>
 
-    <button @click="items.forEach(i => i.status = '')" class="w-full p-4 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm uppercase">Reset All Statuses</button>
+    <!-- Weather Forecast View -->
+    <div x-show="view === 'forecast'" class="space-y-3">
+        <button @click="fetchForecast()" class="w-full p-3 bg-blue-500 text-white rounded-lg font-bold">Refresh Forecast</button>
+        <div x-show="loading" class="text-center py-10 text-gray-400">Fetching live weather...</div>
+        <template x-for="day in forecastData" :key="day.date + day.city">
+            <div class="bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center" :class="day.isError ? 'opacity-60' : ''">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl" x-text="day.emoji"></span>
+                    <div>
+                        <p class="font-bold text-sm" x-text="day.city"></p>
+                        <p class="text-xs text-gray-400" x-text="day.date"></p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="font-bold text-lg" x-text="day.isError ? 'Not Yet Available' : day.max + '°F / ' + day.min + '°F'"></p>
+                    <p class="text-xs text-blue-500 font-medium" x-show="!day.isError" x-text="'Rain: ' + day.prob + '%'"></p>
+                </div>
+            </div>
+        </template>
+    </div>
 </div>
 
 <script>
     function packerApp() {
         return {
             stops: [{city: '', dateRange: '', start: null, end: null}],
-            items: [], touchStartX: 0, loading: false,
+            items: [], touchStartX: 0, loading: false, view: 'list', forecastData: [],
+            
+            getEmoji(code, prob) {
+                // If high probability of rain, return rain emoji
+                if (prob >= 50) return '🌧️'; 
+                
+                // If low probability, ignore 'rainy' codes (like 51, 61, 80) and default to fair
+                const fairMap = { 0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️' };
+                return fairMap[code] || '☀️';
+            },
+            
             init() {
                 const saved = localStorage.getItem('packingData');
                 if (saved) { const p = JSON.parse(saved); this.stops = p.stops; this.items = p.items; }
-                this.$nextTick(() => this.initDatePicker(0));
-                this.$watch('items', val => localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})));
+                this.$nextTick(() => this.stops.forEach((_, i) => this.initDatePicker(i)));
             },
-            initDatePicker(idx) { flatpickr(`#date-input-${idx}`, { mode: "range", dateFormat: "Y-m-d", onChange: (d) => { this.stops[idx].start = d[0]; this.stops[idx].end = d[1]; } }); },
+            
+            initDatePicker(idx) { 
+                flatpickr(`#date-input-${idx}`, { 
+                    mode: "range", dateFormat: "Y-m-d", 
+                    onChange: (d) => { if(d.length === 2) { this.stops[idx].start = d[0]; this.stops[idx].end = d[1]; } } 
+                }); 
+            },
+            
             addStop() { this.stops.push({city: '', dateRange: '', start: null, end: null}); this.$nextTick(() => this.initDatePicker(this.stops.length - 1)); },
             removeStop(i) { this.stops.splice(i, 1); },
+            toggleView() { this.view = this.view === 'list' ? 'forecast' : 'list'; if(this.view === 'forecast') this.fetchForecast(); },
+            
+            async fetchForecast() {
+                this.loading = true; this.forecastData = [];
+                const today = new Date('2026-07-18');
+                const limitDate = new Date(today); limitDate.setDate(today.getDate() + 15);
+
+                for (let s of this.stops) {
+                    if (!s.city || !s.start || !s.end) continue;
+                    try {
+                        const g = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(s.city.split(',')[0])}&count=1`).then(r => r.json());
+                        const loc = g.results[0];
+                        for (let d = new Date(s.start); d <= s.end; d.setDate(d.getDate() + 1)) {
+                            const dateStr = d.toISOString().split('T')[0];
+                            if (d > limitDate) {
+                                this.forecastData.push({ city: loc.name, date: dateStr, emoji: '🚫', isError: true });
+                                continue;
+                            }
+                            const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&start_date=${dateStr}&end_date=${dateStr}&temperature_unit=fahrenheit&timezone=auto`).then(r => r.json());
+                            this.forecastData.push({ 
+                                city: loc.name, date: dateStr, 
+                                max: Math.round(w.daily.temperature_2m_max[0]), 
+                                min: Math.round(w.daily.temperature_2m_min[0]),
+                                prob: w.daily.precipitation_probability_max[0],
+                                emoji: this.getEmoji(w.daily.weather_code[0], w.daily.precipitation_probability_max[0]),
+                                isError: false 
+                            });
+                        }
+                    } catch(e) { console.error(e); }
+                }
+                this.loading = false;
+            },
+            
+            async populateData() {
+                this.loading = true;
+                const totalDays = Math.max(1, this.totalDays);
+                let pantsCount = 0, shortsCount = 0;
+                let needsPuffer = false, needsHoodie = false;
+
+                for (let s of this.stops) {
+                    if (!s.start || !s.end) continue;
+                    let isStopCold = false;
+                    try {
+                        const g = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(s.city.split(',')[0])}&count=1`).then(r => r.json());
+                        const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.results[0].latitude}&longitude=${g.results[0].longitude}&daily=temperature_2m_max&start_date=${s.start.toISOString().split('T')[0]}&end_date=${s.start.toISOString().split('T')[0]}&temperature_unit=fahrenheit&timezone=auto`).then(r => r.json());
+                        if (w.daily.temperature_2m_max[0] < 60) isStopCold = true;
+                    } catch(e) { isStopCold = (s.start.getMonth() >= 10 || s.start.getMonth() <= 2); }
+
+                    const duration = Math.ceil((s.end - s.start) / 86400000);
+                    if (isStopCold) { needsPuffer = true; pantsCount += Math.ceil(duration / 2.5); } 
+                    else { needsHoodie = true; shortsCount += Math.ceil(duration / 2.5); }
+                }
+
+                let def = [
+                    {n: 'T-shirts', q: totalDays},
+                    {n: 'Pants', q: Math.max(pantsCount, 0)},
+                    {n: 'Shorts', q: Math.max(shortsCount, 0)},
+                    {n: 'Underwear', q: totalDays},
+                    {n: 'Socks', q: totalDays}
+                ].filter(item => item.q > 0);
+
+                let outer = [];
+                if (needsPuffer) outer.push('Puffer Jacket');
+                if (needsHoodie) outer.push('Light Hoodie');
+
+                this.items = [
+                    ...this.items.filter(i => !i.isAuto),
+                    ...def.map((d, i) => ({id: Date.now()+i, name: d.n, cat: 'Suitcase', qty: d.q, status: '', isAuto: true})),
+                    ...outer.map((n, i) => ({id: Date.now()+i+100, name: n, cat: 'Backpack', qty: 1, status: '', isAuto: true}))
+                ];
+                this.loading = false;
+            },
+
             addManualItem(cat, name) { if(name) this.items.push({id: Date.now(), name, qty: 1, cat, status: '', isAuto: false}); },
             toggleStatus(item) { const s = ['', '✓', 'X']; item.status = s[(s.indexOf(item.status) + 1) % 3]; },
-            moveItem(item, dir, cat) {
-                let list = this.items.filter(i => i.cat === cat);
-                const idx = list.findIndex(i => i.id === item.id);
-                if (idx + dir >= 0 && idx + dir < list.length) {
-                    const t = list[idx]; list[idx] = list[idx+dir]; list[idx+dir] = t;
-                    this.items = [...this.items.filter(i => i.cat !== cat), ...list];
-                }
-            },
             touchStart(e) { this.touchStartX = e.touches[0].clientX; },
             touchMove(e, el) { const diff = e.touches[0].clientX - this.touchStartX; if (diff < 0) el.style.transform = `translateX(${diff}px)`; },
             touchEnd(e, item, el) { if (this.touchStartX - e.changedTouches[0].clientX > 100) this.items = this.items.filter(i => i.id !== item.id); else el.style.transform = 'translateX(0)'; },
-            async populateData() {
-                this.loading = true;
-                const days = Math.max(1, parseInt(this.totalDays) || 1);
-                let pants = 0, shorts = 0, outer = [];
-                for (let s of this.stops) {
-                    let isCold = false;
-                    const diffDays = (new Date(s.start) - new Date()) / (1000 * 60 * 60 * 24);
-                    if (s.start && s.city && diffDays <= 14 && diffDays >= 0) {
-                        try {
-                            const g = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(s.city)}&count=1`).then(r => r.json());
-                            const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.results[0].latitude}&longitude=${g.results[0].longitude}&daily=temperature_2m_max&start_date=${s.start.toISOString().split('T')[0]}&end_date=${s.start.toISOString().split('T')[0]}&timezone=auto`).then(r => r.json());
-                            if (w.daily.temperature_2m_max[0] < 15) isCold = true;
-                        } catch(e) { isCold = (new Date(s.start).getMonth() >= 10 || new Date(s.start).getMonth() <= 2); }
-                    } else { isCold = (new Date(s.start).getMonth() >= 10 || new Date(s.start).getMonth() <= 2); }
-                    if (isCold) { pants += Math.ceil(days / 2.5); outer.push('Puffer Jacket'); }
-                    else { shorts += Math.ceil(days / 2.5); outer.push('Light Hoodie'); }
-                }
-                let def = [{n: 'T-shirts', q: days}, {n: shorts > 0 ? 'Shorts' : 'Pants', q: Math.max(1, shorts > 0 ? shorts : pants)}, {n: 'Underwear', q: days}, {n: 'Socks', q: days}];
-                this.items = [...this.items.filter(i => !i.isAuto), ...def.map((d, i) => ({id: Date.now()+i, name: d.n, cat: 'Suitcase', qty: d.q, status: '', isAuto: true})), ...outer.map((n, i) => ({id: Date.now()+i+10, name: n, cat: 'Backpack', qty: 1, status: '', isAuto: true}))];
-                this.loading = false;
-            },
             get totalDays() { return this.stops.reduce((a, s) => s.start && s.end ? a + Math.ceil((s.end - s.start)/86400000) : a, 0); },
             get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
             get packedCount() { return this.items.filter(i => i.status === '✓').length; },
