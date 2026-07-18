@@ -82,7 +82,6 @@
                                 <button @click="item.qty > 1 ? item.qty-- : 1" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">-</button>
                                 <button @click="item.qty++" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">+</button>
                                 <button @click="toggleStatus(item)" class="w-10 h-10 rounded-lg border-2 transition-colors text-lg" :class="statusClass(item)" x-text="item.status || '○'"></button>
-                                <button @click="removeItem(item)" class="text-gray-300 hover:text-red-500 text-xl px-1">✕</button>
                             </div>
                         </li>
                     </template>
