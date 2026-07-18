@@ -37,7 +37,9 @@
         <button @click="addStop()" class="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold text-sm uppercase">+ Add City</button>
     </div>
 
-    <button @click="populateData()" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold">Generate Packing List</button>
+    <button @click="populateData()" :disabled="loading" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold">
+        <span x-text="loading ? 'Analyzing Destination...' : 'Generate Packing List'"></span>
+    </button>
 
     <!-- Lists -->
     <div class="space-y-5">
@@ -46,20 +48,22 @@
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
                 <ul class="space-y-1 overflow-hidden">
                     <template x-for="(item, index) in items.filter(i => i.cat === category).sort((a,b) => b.isAuto - a.isAuto)" :key="item.id">
-                        <li class="flex items-center gap-3 p-2 border-b border-gray-50 bg-white swipe-item"
-                            @touchstart="touchStart($event)" @touchmove="touchMove($event, $el)" @touchend="touchEnd($event, item, $el)">
+                        <li class="flex items-center gap-3 p-2 border-b border-gray-50 swipe-item"
+                            @touchstart="touchStart($event)" @touchend="touchEnd($event, item, $el)">
                             <div class="flex gap-1">
-                                <button @click="moveItem(item, -1, category)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded">▲</button>
-                                <button @click="moveItem(item, 1, category)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded">▼</button>
+                                <button @click="moveItem(item, -1, category)" class="text-gray-300 hover:text-blue-600">▲</button>
+                                <button @click="moveItem(item, 1, category)" class="text-gray-300 hover:text-blue-600">▼</button>
                             </div>
-                            <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '' && category !== 'Toiletries'}" class="flex-grow">
+                            <span :class="{'line-through text-gray-400': item.status === '✓' || item.status === 'X', 'font-bold text-blue-600': item.isAuto && item.status === ''}" class="flex-grow">
                                 <span x-text="item.name"></span>
                                 <span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
                             </span>
-                            <div class="flex items-center gap-2">
-                                <button @click="item.qty > 1 ? item.qty-- : 1" class="w-8 h-8 bg-gray-100 rounded">-</button>
-                                <button @click="item.qty++" class="w-8 h-8 bg-gray-100 rounded">+</button>
-                                <button @click="toggleStatus(item)" class="w-8 h-8 rounded-lg border-2" :class="statusClass(item)" x-text="item.status || '○'"></button>
+                            <div class="flex items-center gap-1">
+                                <button @click="item.qty > 1 ? item.qty-- : 1" class="w-6 h-6 bg-gray-100 rounded">-</button>
+                                <button @click="item.qty++" class="w-6 h-6 bg-gray-100 rounded">+</button>
+                                <button @click="toggleStatus(item)" class="w-8 h-8 rounded border-2 flex items-center justify-center font-bold" 
+                                    :class="{'bg-green-500 border-green-500 text-white': item.status === '✓', 'bg-red-500 border-red-500 text-white': item.status === 'X'}" 
+                                    x-text="item.status || '○'"></button>
                             </div>
                         </li>
                     </template>
@@ -69,62 +73,60 @@
         </template>
     </div>
 
-    <button @click="items.forEach(i => i.status = '')" class="w-full p-4 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm uppercase tracking-widest hover:bg-gray-100">Reset All Statuses</button>
+    <button @click="items.forEach(i => i.status = '')" class="w-full p-4 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm uppercase">Reset All Statuses</button>
 </div>
 
 <script>
     function packerApp() {
         return {
             stops: [{city: '', dateRange: '', start: null, end: null}],
-            items: [], touchStartX: 0,
+            items: [], touchStartX: 0, loading: false,
             init() {
                 const saved = localStorage.getItem('packingData');
-                if (saved) { const parsed = JSON.parse(saved); this.stops = parsed.stops; this.items = parsed.items; }
+                if (saved) { const p = JSON.parse(saved); this.stops = p.stops; this.items = p.items; }
                 this.$nextTick(() => this.initDatePicker(0));
                 this.$watch('items', val => localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})));
             },
-            initDatePicker(idx) { 
-                flatpickr(`#date-input-${idx}`, { mode: "range", dateFormat: "Y-m-d", onChange: (d) => { this.stops[idx].start = d[0]; this.stops[idx].end = d[1]; } }); 
-            },
+            initDatePicker(idx) { flatpickr(`#date-input-${idx}`, { mode: "range", dateFormat: "Y-m-d", onChange: (d) => { this.stops[idx].start = d[0]; this.stops[idx].end = d[1]; } }); },
             addStop() { this.stops.push({city: '', dateRange: '', start: null, end: null}); this.$nextTick(() => this.initDatePicker(this.stops.length - 1)); },
             removeStop(i) { this.stops.splice(i, 1); },
-            touchStart(e) { this.touchStartX = e.touches[0].clientX; },
-            touchMove(e, el) { const diff = e.touches[0].clientX - this.touchStartX; if (diff < 0) el.style.transform = `translateX(${diff}px)`; },
-            touchEnd(e, item, el) { const diff = e.changedTouches[0].clientX - this.touchStartX; if (diff < -100) { this.items = this.items.filter(i => i.id !== item.id); } else { el.style.transform = 'translateX(0)'; } },
+            addManualItem(cat, name) { if(name) this.items.push({id: Date.now(), name, qty: 1, cat, status: '', isAuto: false}); },
+            toggleStatus(item) { const s = ['', '✓', 'X']; item.status = s[(s.indexOf(item.status) + 1) % 3]; },
             moveItem(item, dir, cat) {
-                let catItems = this.items.filter(i => i.cat === cat);
-                const idx = catItems.findIndex(i => i.id === item.id);
-                const nIdx = idx + dir;
-                if (nIdx >= 0 && nIdx < catItems.length) {
-                    const temp = catItems[idx]; catItems[idx] = catItems[nIdx]; catItems[nIdx] = temp;
-                    this.items = [...this.items.filter(i => i.cat !== cat), ...catItems];
+                let list = this.items.filter(i => i.cat === cat);
+                const idx = list.findIndex(i => i.id === item.id);
+                if (idx + dir >= 0 && idx + dir < list.length) {
+                    const t = list[idx]; list[idx] = list[idx+dir]; list[idx+dir] = t;
+                    this.items = [...this.items.filter(i => i.cat !== cat), ...list];
                 }
             },
-            toggleStatus(item) { const s = ['', '✓', 'X']; item.status = s[(s.indexOf(item.status) + 1) % 3]; },
-            statusClass(item) { return {'bg-green-500 text-white': item.status === '✓', 'bg-red-500 text-white': item.status === 'X', 'bg-white': item.status === ''}; },
-            addManualItem(cat, name) { if(name) this.items.push({id: Date.now(), name, qty: 1, cat, status: '', isAuto: false}); },
-            get totalDays() { const days = this.stops.reduce((a, s) => s.start && s.end ? a + Math.ceil((s.end - s.start)/86400000) : a, 0); return days > 0 ? days : ''; },
-            get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
-            get packedCount() { return this.items.filter(i => i.status === '✓').length; },
-            get progress() { return this.activeItemsCount > 0 ? (this.packedCount / this.activeItemsCount) * 100 : 0; },
-            populateData() {
+            touchStart(e) { this.touchStartX = e.touches[0].clientX; },
+            touchEnd(e, item, el) { if (this.touchStartX - e.changedTouches[0].clientX > 100) this.items = this.items.filter(i => i.id !== item.id); },
+            async populateData() {
+                this.loading = true;
                 const days = Math.max(1, parseInt(this.totalDays) || 1);
                 let pants = 0, shorts = 0, outer = [];
-                this.stops.forEach(s => {
-                    if (!s.start) return;
-                    const m = new Date(s.start).getMonth();
-                    if (m <= 2 || m >= 10) { pants += Math.ceil(days / 2.5); outer.push('Puffer Jacket'); }
+                for (let s of this.stops) {
+                    let isCold = false;
+                    const diffDays = (new Date(s.start) - new Date()) / (1000 * 60 * 60 * 24);
+                    if (s.start && s.city && diffDays <= 14 && diffDays >= 0) {
+                        try {
+                            const g = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(s.city)}&count=1`).then(r => r.json());
+                            const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.results[0].latitude}&longitude=${g.results[0].longitude}&daily=temperature_2m_max&start_date=${s.start.toISOString().split('T')[0]}&end_date=${s.start.toISOString().split('T')[0]}&timezone=auto`).then(r => r.json());
+                            if (w.daily.temperature_2m_max[0] < 15) isCold = true;
+                        } catch(e) { isCold = (new Date(s.start).getMonth() >= 10 || new Date(s.start).getMonth() <= 2); }
+                    } else { isCold = (new Date(s.start).getMonth() >= 10 || new Date(s.start).getMonth() <= 2); }
+                    if (isCold) { pants += Math.ceil(days / 2.5); outer.push('Puffer Jacket'); }
                     else { shorts += Math.ceil(days / 2.5); outer.push('Light Hoodie'); }
-                });
-                let defaults = [
-                    {n: 'T-shirts', c: 'Suitcase', q: days}, 
-                    {n: shorts > 0 ? 'Shorts' : 'Pants', c: 'Suitcase', q: Math.max(1, shorts > 0 ? shorts : pants)}, 
-                    {n: 'Underwear', c: 'Suitcase', q: days}, 
-                    {n: 'Socks', c: 'Suitcase', q: days}
-                ];
-                outer.forEach((n, i) => defaults.push({n, c: 'Backpack', q: 1}));
-                this.items = [...this.items.filter(i => !i.isAuto), ...defaults.map((d, i) => ({id: Date.now() + i, name: d.n, cat: d.c, qty: d.q, status: '', isAuto: true}))];
-            }
+                }
+                let def = [{n: 'T-shirts', q: days}, {n: shorts > 0 ? 'Shorts' : 'Pants', q: Math.max(1, shorts > 0 ? shorts : pants)}, {n: 'Underwear', q: days}, {n: 'Socks', q: days}];
+                this.items = [...this.items.filter(i => !i.isAuto), ...def.map((d, i) => ({id: Date.now()+i, name: d.n, cat: 'Suitcase', qty: d.q, status: '', isAuto: true})), ...outer.map((n, i) => ({id: Date.now()+i+10, name: n, cat: 'Backpack', qty: 1, status: '', isAuto: true}))];
+                this.loading = false;
+            },
+            get totalDays() { return this.stops.reduce((a, s) => s.start && s.end ? a + Math.ceil((s.end - s.start)/86400000) : a, 0); },
+            get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
+            get packedCount() { return this.items.filter(i => i.status === '✓').length; },
+            get progress() { return this.activeItemsCount > 0 ? (this.packedCount / this.activeItemsCount) * 100 : 0; }
         }
     }
 </script>
