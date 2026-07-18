@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <title>🧳 Packing Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -14,9 +16,6 @@
         .swipe-action { position: absolute; right: 0; top: 0; height: 100%; width: 100px; display: flex; align-items: center; justify-content: flex-end; padding-right: 20px; color: #dc2626; z-index: 1; font-size: 1.5rem; }
         .long-press-btn { transition: background 0.3s ease; position: relative; overflow: hidden; }
         .progress-bar { position: absolute; bottom: 0; left: 0; height: 4px; background: #991b1b; width: 0%; transition: width 0.1s linear; }
-        /* Force pointer events through the input */
-        .date-input-wrapper { cursor: pointer; }
-        .date-input-wrapper input { pointer-events: none; }
     </style>
 </head>
 <body class="bg-gray-50 p-4">
@@ -45,10 +44,12 @@
                     <input type="text" x-model="stop.city" @change="saveData()" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
                     
                     <!-- Calendar Trigger Wrapper -->
-                    <div class="date-input-wrapper relative" :id="'date-wrapper-' + index">
-                        <input type="text" :id="'date-input-' + index" x-model="stop.dateRange" 
+                    <div class="relative" :id="'date-wrapper-' + index">
+                        <input type="text" data-input x-model="stop.dateRange" 
                                class="w-full p-3 text-base border rounded-lg bg-white" 
                                placeholder="Select dates..." readonly>
+                        <!-- Transparent button overlay for iOS trigger -->
+                        <button type="button" data-toggle class="absolute inset-0 w-full h-full cursor-pointer"></button>
                     </div>
 
                     <button x-show="index > 0" @click="removeStop(index)" class="w-full p-2 text-red-500 font-bold text-sm bg-red-50 rounded-lg">Remove Stop</button>
@@ -140,8 +141,9 @@
             
             initDatePicker(idx) { 
                 flatpickr(`#date-wrapper-${idx}`, { 
-                    input: `#date-input-${idx}`,
-                    mode: "range", dateFormat: "Y-m-d", 
+                    wrap: true, // Crucial for iOS standalone
+                    mode: "range", 
+                    dateFormat: "Y-m-d", 
                     defaultDate: [this.stops[idx].start, this.stops[idx].end],
                     onChange: (d) => { if(d.length === 2) { this.stops[idx].start = d[0]; this.stops[idx].end = d[1]; this.saveData(); } } 
                 }); 
