@@ -25,6 +25,7 @@
         <div><p class="text-xs text-gray-500 uppercase font-bold">Packed</p><p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p></div>
     </div>
 
+    <!-- Itinerary -->
     <div class="space-y-4">
         <template x-for="(stop, index) in stops" :key="index">
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
@@ -38,19 +39,20 @@
 
     <button @click="populateData()" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold">Generate Packing List</button>
 
+    <!-- Lists -->
     <div class="space-y-5">
-        <template x-for="category in ['Suitcase', 'Backpack', 'Dopp Kit']" :key="category">
+        <template x-for="category in ['Suitcase', 'Backpack', 'Toiletries']" :key="category">
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
                 <ul class="space-y-1 overflow-hidden">
-                    <template x-for="(item, index) in items.filter(i => i.cat === category)" :key="item.id">
+                    <template x-for="(item, index) in items.filter(i => i.cat === category).sort((a,b) => b.isAuto - a.isAuto)" :key="item.id">
                         <li class="flex items-center gap-3 p-2 border-b border-gray-50 bg-white swipe-item"
                             @touchstart="touchStart($event)" @touchmove="touchMove($event, $el)" @touchend="touchEnd($event, item, $el)">
                             <div class="flex gap-1">
                                 <button @click="moveItem(item, -1, category)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded">▲</button>
                                 <button @click="moveItem(item, 1, category)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded">▼</button>
                             </div>
-                            <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '' && category !== 'Dopp Kit'}" class="flex-grow">
+                            <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '' && category !== 'Toiletries'}" class="flex-grow">
                                 <span x-text="item.name"></span>
                                 <span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
                             </span>
@@ -93,7 +95,6 @@
                 let catItems = this.items.filter(i => i.cat === cat);
                 const idx = catItems.findIndex(i => i.id === item.id);
                 const nIdx = idx + dir;
-                // Allow movement if same type OR just moving within the list
                 if (nIdx >= 0 && nIdx < catItems.length) {
                     const temp = catItems[idx]; catItems[idx] = catItems[nIdx]; catItems[nIdx] = temp;
                     this.items = [...this.items.filter(i => i.cat !== cat), ...catItems];
@@ -119,12 +120,7 @@
                     {n: 'T-shirts', c: 'Suitcase', q: days}, 
                     {n: shorts > 0 ? 'Shorts' : 'Pants', c: 'Suitcase', q: Math.max(1, shorts > 0 ? shorts : pants)}, 
                     {n: 'Underwear', c: 'Suitcase', q: days}, 
-                    {n: 'Socks', c: 'Suitcase', q: days},
-                    {n: 'Toothbrush', c: 'Dopp Kit', q: 1}, {n: 'Toothpaste', c: 'Dopp Kit', q: 1}, {n: 'Hairbrush', c: 'Dopp Kit', q: 1},
-                    {n: 'Tongue Scraper', c: 'Dopp Kit', q: 1}, {n: 'Floss Picks', c: 'Dopp Kit', q: days},
-                    {n: 'Invisalign', c: 'Dopp Kit', q: 1}, {n: 'Denture Tablets', c: 'Dopp Kit', q: days}, {n: 'AM Moisturizer', c: 'Dopp Kit', q: 1},
-                    {n: 'PM Moisturizer', c: 'Dopp Kit', q: 1}, {n: 'Vitamin C', c: 'Dopp Kit', q: 1}, {n: 'Retinal', c: 'Dopp Kit', q: 1},
-                    {n: 'Facewash', c: 'Dopp Kit', q: 1}, {n: 'Shaver', c: 'Dopp Kit', q: 1}, {n: 'Nail Clippers', c: 'Dopp Kit', q: 1}, {n: 'Tweezers', c: 'Dopp Kit', q: 1}
+                    {n: 'Socks', c: 'Suitcase', q: days}
                 ];
                 outer.forEach((n, i) => defaults.push({n, c: 'Backpack', q: 1}));
                 this.items = [...this.items.filter(i => !i.isAuto), ...defaults.map((d, i) => ({id: Date.now() + i, name: d.n, cat: d.c, qty: d.q, status: '', isAuto: true}))];
