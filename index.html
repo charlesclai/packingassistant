@@ -13,14 +13,12 @@
         .swipe-item { transition: transform 0.1s ease-out; }
         .sortable-chosen { @apply shadow-2xl scale-105 bg-blue-50 cursor-grabbing; opacity: 0.9; }
         .sortable-ghost { @apply opacity-30 bg-gray-100; }
-        /* Ensure the handle is the only place to trigger sorting */
         .handle { touch-action: none; cursor: grab; }
     </style>
 </head>
 <body class="bg-gray-50 p-4" x-data="packerApp()" x-init="init()">
 
 <div class="max-w-2xl mx-auto space-y-5">
-    <!-- Header/Itinerary/Stats (Same as before) -->
     <header class="flex flex-col gap-3">
         <h1 class="text-3xl font-light">Packing Assistant</h1>
         <div class="w-full bg-gray-200 h-4 rounded-full overflow-hidden">
@@ -30,12 +28,43 @@
         </div>
     </header>
 
+    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center">
+        <div>
+            <p class="text-xs text-gray-500 uppercase font-bold">Total Duration</p>
+            <p class="text-2xl font-bold" x-text="totalDays"></p>
+        </div>
+        <div>
+            <p class="text-xs text-gray-500 uppercase font-bold">Packed</p>
+            <p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p>
+        </div>
+    </div>
+
+    <!-- Itinerary -->
+    <div class="space-y-4">
+        <template x-for="(stop, index) in stops" :key="index">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
+                <div class="relative">
+                    <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">City</label>
+                    <input type="text" x-model="stop.city" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Travel Dates</label>
+                    <input type="text" :id="'date-input-' + index" x-model="stop.dateRange" class="w-full p-3 text-base border rounded-lg bg-white cursor-pointer" placeholder="Select range..." readonly>
+                </div>
+                <button x-show="index > 0" @click="removeStop(index)" class="w-full p-2 text-red-500 font-bold text-sm bg-red-50 rounded-lg">Remove Stop</button>
+            </div>
+        </template>
+        <button @click="addStop()" class="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold text-sm uppercase tracking-widest">+ Add City</button>
+    </div>
+
+    <button @click="populateClothing()" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold hover:bg-black transition-colors">Generate Packing List</button>
+
+    <!-- Lists -->
     <div class="space-y-5">
         <template x-for="category in ['Suitcase', 'Backpack']" :key="category">
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
                 
-                <!-- Use 'handle' to restrict sorting to the icon only -->
                 <ul class="space-y-1" x-sort="onSort($item, $position, category)" x-sort:group="items" x-sort:handle=".handle">
                     <template x-for="item in items.filter(i => i.cat === category).sort((a, b) => b.isAuto - a.isAuto)" :key="item.id">
                         <li class="flex items-center justify-between p-2 border-b border-gray-50 bg-white swipe-item"
@@ -43,21 +72,25 @@
                             @touchmove="touchMove($event, $el)"
                             @touchend="touchEnd($event, item, $el)">
                             
-                            <!-- The Drag Handle -->
                             <div class="handle p-4 -ml-2 mr-1 text-gray-300 hover:text-blue-500">
                                 <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M4 9h16v2H4zm0 4h16v2H4z"/></svg>
                             </div>
                             
-                            <span class="text-base flex-grow px-2 py-1">
-                                <span x-text="item.name"></span>
+                            <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '', 'text-black': !item.isAuto && item.status === ''}" class="text-base flex-grow px-2 py-1">
+                                <span x-text="item.name"></span><span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
                             </span>
                             
                             <div class="flex items-center gap-2">
+                                <button @click="item.qty > 1 ? item.qty-- : 1" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">-</button>
+                                <button @click="item.qty++" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">+</button>
                                 <button @click="toggleStatus(item)" class="w-10 h-10 rounded-lg border-2 transition-colors text-lg" :class="statusClass(item)" x-text="item.status || '○'"></button>
                             </div>
                         </li>
                     </template>
                 </ul>
+                <div class="mt-4">
+                    <input type="text" x-model="manualInput" @keydown.enter="addManualItem(category, manualInput); manualInput=''" placeholder="+ Add custom item..." class="w-full p-3 text-base border rounded-lg">
+                </div>
             </div>
         </template>
     </div>
@@ -66,15 +99,40 @@
 <script>
     function packerApp() {
         return {
+            stops: [{city: '', dateRange: '', start: null, end: null}],
             items: [],
             touchStartX: 0,
             
-            // Logic for swipe vs drag
+            init() {
+                const saved = localStorage.getItem('packingData');
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed.items)) {
+                            this.stops = parsed.stops || [{city: '', dateRange: '', start: null, end: null}];
+                            this.items = parsed.items;
+                        }
+                    } catch (e) { localStorage.removeItem('packingData'); }
+                }
+                this.$nextTick(() => this.stops.forEach((_, i) => this.initDatePicker(i)));
+                this.$watch('items', val => localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})));
+            },
+
+            onSort(item, position, newCategory) {
+                const oldIndex = this.items.indexOf(item);
+                this.items.splice(oldIndex, 1);
+                item.cat = newCategory;
+                this.items.splice(position, 0, item);
+            },
+
+            initDatePicker(index) { flatpickr(`#date-input-${index}`, { mode: "range", dateFormat: "Y-m-d", onChange: (dates) => { this.stops[index].start = dates[0]; this.stops[index].end = dates[1]; } }); },
+            addStop() { this.stops.push({city: '', dateRange: '', start: null, end: null}); this.$nextTick(() => this.initDatePicker(this.stops.length - 1)); },
+            removeStop(index) { this.stops.splice(index, 1); },
+            removeItem(item) { const index = this.items.findIndex(i => i.id === item.id); if (index !== -1) this.items.splice(index, 1); },
+            
             touchStart(e) { this.touchStartX = e.touches[0].clientX; },
             touchMove(e, el) {
-                // If it's a drag handle, let x-sort handle it. Otherwise, swipe.
                 if (e.target.closest('.handle')) return;
-                
                 const diff = e.touches[0].clientX - this.touchStartX;
                 if (diff < -20) el.style.transform = `translateX(${diff}px)`;
             },
@@ -82,20 +140,38 @@
                 const diff = e.changedTouches[0].clientX - this.touchStartX;
                 if (diff < -100) { this.removeItem(item); } else { el.style.transform = 'translateX(0)'; }
             },
-            
-            onSort(item, position, newCategory) {
-                const oldIndex = this.items.indexOf(item);
-                this.items.splice(oldIndex, 1);
-                item.cat = newCategory;
-                this.items.splice(position, 0, item);
-            },
-            
-            removeItem(item) { const index = this.items.findIndex(i => i.id === item.id); if (index !== -1) this.items.splice(index, 1); },
-            toggleStatus(item) { const states = ['', '✓', 'X']; item.status = states[(states.indexOf(item.status) + 1) % 3]; },
-            statusClass(item) { return {'bg-green-500 text-white border-green-500': item.status === '✓', 'bg-red-500 text-white border-red-500': item.status === 'X', 'bg-white': item.status === ''}; },
+
+            get totalDays() { const days = this.stops.reduce((acc, s) => s.start && s.end ? acc + Math.ceil((s.end - s.start) / 86400000) : acc, 0); return days > 0 ? days + ' Days' : ''; },
             get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
             get packedCount() { return this.items.filter(i => i.status === '✓').length; },
-            get progress() { return this.activeItemsCount > 0 ? (this.packedCount / this.activeItemsCount) * 100 : 0; }
+            get progress() { return this.activeItemsCount > 0 ? (this.packedCount / this.activeItemsCount) * 100 : 0; },
+
+            toggleStatus(item) { const states = ['', '✓', 'X']; item.status = states[(states.indexOf(item.status) + 1) % 3]; },
+            statusClass(item) { return {'bg-green-500 text-white border-green-500': item.status === '✓', 'bg-red-500 text-white border-red-500': item.status === 'X', 'bg-white': item.status === ''}; },
+            addManualItem(cat, name) { if(!name) return; this.items.push({id: Date.now(), name: name, qty: 1, cat: cat, status: '', isAuto: false}); },
+            
+            populateClothing() {
+                let totalDuration = 0;
+                let shortsTotalDays = 0;
+                let pantsTotalDays = 0;
+                let outerList = new Set();
+                this.stops.forEach(stop => {
+                    if (!stop.start || !stop.end) return;
+                    const days = Math.ceil((stop.end - stop.start) / 86400000);
+                    totalDuration += days;
+                    const month = new Date(stop.start).getMonth();
+                    const isCold = month <= 2 || month >= 10;
+                    const city = stop.city.toLowerCase();
+                    const isWarmCity = city.includes('san diego') || city.includes('palm springs') || city.includes('miami');
+                    if (isCold && !isWarmCity) { pantsTotalDays += days; outerList.add('Puffer Jacket'); } else { shortsTotalDays += days; outerList.add('Light Hoodie'); }
+                });
+                let newItems = [{id: 1, name: 'T-shirts', qty: Math.max(1, totalDuration), cat: 'Suitcase', status: '', isAuto: true}];
+                if (shortsTotalDays > 0) newItems.push({id: 4, name: 'Shorts', qty: Math.max(1, Math.ceil(shortsTotalDays / 2.5)), cat: 'Suitcase', status: '', isAuto: true});
+                if (pantsTotalDays > 0) newItems.push({id: 5, name: 'Pants', qty: Math.max(1, Math.ceil(pantsTotalDays / 2.5)), cat: 'Suitcase', status: '', isAuto: true});
+                newItems.push({id: 2, name: 'Underwear', qty: Math.max(1, totalDuration), cat: 'Suitcase', status: '', isAuto: true}, {id: 3, name: 'Socks', qty: Math.max(1, totalDuration), cat: 'Suitcase', status: '', isAuto: true});
+                outerList.forEach((name, idx) => newItems.push({id: 10 + idx, name: name, qty: 1, cat: 'Backpack', status: '', isAuto: true}));
+                this.items = [...this.items.filter(i => !i.isAuto), ...newItems];
+            }
         }
     }
 </script>
