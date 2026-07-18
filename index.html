@@ -12,10 +12,7 @@
     <style>
         .touch-pan-y { touch-action: pan-y; }
         .swipe-item { transition: transform 0.1s ease-out; }
-        /* Dragging animation */
-        .sortable-chosen {
-            @apply shadow-2xl scale-105 bg-blue-50 cursor-grabbing;
-        }
+        .sortable-chosen { @apply shadow-2xl scale-105 bg-blue-50 cursor-grabbing; }
     </style>
 </head>
 <body class="bg-gray-50 p-4" x-data="packerApp()" x-init="init()">
@@ -41,6 +38,7 @@
         </div>
     </div>
 
+    <!-- Itinerary -->
     <div class="space-y-4">
         <template x-for="(stop, index) in stops" :key="index">
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
@@ -60,21 +58,26 @@
 
     <button @click="populateClothing()" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold hover:bg-black transition-colors">Generate Packing List</button>
 
+    <!-- Lists -->
     <div class="space-y-5">
         <template x-for="category in ['Suitcase', 'Backpack']" :key="category">
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
-                <!-- Added x-sort:group to enable drag and drop -->
                 <ul class="space-y-1" x-sort="onSort($item, $position, category)" x-sort:group="items">
                     <template x-for="item in items.filter(i => i.cat === category).sort((a, b) => b.isAuto - a.isAuto)" :key="item.id">
                         <li class="flex items-center justify-between p-2 border-b border-gray-50 touch-pan-y swipe-item bg-white"
                             @touchstart="touchStart($event)"
                             @touchmove="touchMove($event, $el)"
                             @touchend="touchEnd($event, item, $el)">
-                            <div x-sort:item="item" class="cursor-grab text-gray-300 mr-3 hover:text-gray-500 select-none">⠿</div>
+                            
+                            <div x-sort:item="item" class="p-4 -ml-2 mr-1 cursor-grab text-gray-300 hover:text-blue-500 touch-none select-none">
+                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M4 9h16v2H4zm0 4h16v2H4z"/></svg>
+                            </div>
+                            
                             <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '', 'text-black': !item.isAuto && item.status === ''}" class="text-base flex-grow px-2 py-1">
                                 <span x-text="item.name"></span><span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
                             </span>
+                            
                             <div class="flex items-center gap-2">
                                 <button @click="item.qty > 1 ? item.qty-- : 1" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">-</button>
                                 <button @click="item.qty++" class="w-8 h-8 bg-gray-100 rounded font-bold text-base">+</button>
