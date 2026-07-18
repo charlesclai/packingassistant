@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Packer">
     <title>🧳 Packing Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -43,13 +44,11 @@
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
                     <input type="text" x-model="stop.city" @change="saveData()" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
                     
-                    <!-- Calendar Trigger Wrapper -->
-                    <div class="relative" :id="'date-wrapper-' + index">
+                    <div class="relative date-wrapper" :data-index="index">
                         <input type="text" data-input x-model="stop.dateRange" 
                                class="w-full p-3 text-base border rounded-lg bg-white" 
                                placeholder="Select dates..." readonly>
-                        <!-- Transparent button overlay for iOS trigger -->
-                        <button type="button" data-toggle class="absolute inset-0 w-full h-full cursor-pointer"></button>
+                        <button type="button" data-toggle class="absolute inset-0 w-full h-full z-20 cursor-pointer"></button>
                     </div>
 
                     <button x-show="index > 0" @click="removeStop(index)" class="w-full p-2 text-red-500 font-bold text-sm bg-red-50 rounded-lg">Remove Stop</button>
@@ -101,7 +100,6 @@
         </button>
     </div>
 
-    <!-- Weather Forecast View -->
     <div x-show="view === 'forecast'" class="space-y-3">
         <button @click="fetchForecast()" class="w-full p-3 bg-blue-500 text-white rounded-lg font-bold">Refresh Forecast</button>
         <template x-for="day in forecastData" :key="day.date + day.city">
@@ -132,33 +130,43 @@
                     const p = JSON.parse(saved); 
                     this.stops = p.stops.map(s => ({...s, start: s.start ? new Date(s.start) : null, end: s.end ? new Date(s.end) : null})); 
                     this.items = p.items; 
-                    this.$nextTick(() => this.stops.forEach((_, i) => this.initDatePicker(i)));
-                } else {
-                    this.initDatePicker(0);
                 }
+                this.$nextTick(() => {
+                    this.stops.forEach((_, i) => this.initDatePicker(i));
+                });
             },
+
             saveData() { localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})); },
             
             initDatePicker(idx) { 
-                flatpickr(`#date-wrapper-${idx}`, { 
-                    wrap: true, // Crucial for iOS standalone
+                const el = document.querySelector(`.date-wrapper[data-index="${idx}"]`);
+                if (!el) return;
+                flatpickr(el, { 
+                    wrap: true,
                     mode: "range", 
                     dateFormat: "Y-m-d", 
                     defaultDate: [this.stops[idx].start, this.stops[idx].end],
-                    onChange: (d) => { if(d.length === 2) { this.stops[idx].start = d[0]; this.stops[idx].end = d[1]; this.saveData(); } } 
+                    onChange: (d) => { 
+                        if(d.length === 2) { 
+                            this.stops[idx].start = d[0]; 
+                            this.stops[idx].end = d[1]; 
+                            this.saveData(); 
+                        } 
+                    } 
                 }); 
+            },
+
+            addStop() { 
+                this.stops.push({city: '', dateRange: '', start: null, end: null}); 
+                this.$nextTick(() => this.initDatePicker(this.stops.length - 1)); 
             },
 
             moveItem(item, dir) {
                 let catItems = this.items.filter(i => i.cat === item.cat);
                 catItems.sort((a, b) => b.isAuto - a.isAuto);
-                
                 const idx = catItems.findIndex(i => i.id === item.id);
                 const newIdx = idx + dir;
-
-                if (newIdx < 0 || newIdx >= catItems.length) return;
-                if (item.isAuto !== catItems[newIdx].isAuto) return;
-
+                if (newIdx < 0 || newIdx >= catItems.length || item.isAuto !== catItems[newIdx].isAuto) return;
                 const i1 = this.items.findIndex(i => i.id === item.id);
                 const i2 = this.items.findIndex(i => i.id === catItems[newIdx].id);
                 [this.items[i1], this.items[i2]] = [this.items[i2], this.items[i1]];
@@ -215,7 +223,6 @@
                 this.loading = false; this.saveData();
             },
 
-            addStop() { this.stops.push({city: '', dateRange: '', start: null, end: null}); this.$nextTick(() => this.initDatePicker(this.stops.length - 1)); },
             removeStop(i) { this.stops.splice(i, 1); this.saveData(); },
             toggleView() { this.view = this.view === 'list' ? 'forecast' : 'list'; if(this.view === 'forecast') this.fetchForecast(); },
             startPress() { this.pressTimer = setInterval(() => { this.pressProgress += 5; if(this.pressProgress >= 100) { this.resetAll(); this.endPress(); } }, 50); },
