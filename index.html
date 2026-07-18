@@ -19,7 +19,9 @@
     <header class="flex flex-col gap-3">
         <h1 class="text-3xl font-light">Packing Assistant</h1>
         <div class="w-full bg-gray-200 h-4 rounded-full overflow-hidden">
-            <div class="bg-blue-600 h-full transition-all duration-500" :style="'width: ' + progress + '%'"></div>
+            <div class="h-full transition-all duration-500" 
+                 :class="progress === 100 ? 'bg-green-500' : 'bg-blue-600'"
+                 :style="'width: ' + progress + '%'"></div>
         </div>
     </header>
 
