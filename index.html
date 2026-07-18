@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <!-- Corrected Title Metadata -->
     <meta name="apple-mobile-web-app-title" content="🧳 Packing Assistant">
     <title>🧳 Packing Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -23,54 +22,66 @@
 <body class="bg-gray-50 p-4">
 
 <div class="max-w-2xl mx-auto space-y-5" x-data="packerApp()" x-init="init()">
-    <header class="flex justify-between items-center">
-        <h1 class="text-3xl font-light">Packing Assistant</h1>
-        <button @click="toggleView()" 
-                class="text-xs font-bold uppercase bg-gray-200 px-3 py-1 rounded-full"
-                x-text="view === 'list' ? 'Weather Forecast' : 'Back to List'"></button>
-    </header>
+    
+    <!-- Dashboard View -->
+    <div x-show="view === 'home'" class="space-y-4">
+        <h1 class="text-3xl font-light">My Trips</h1>
+        <template x-for="(trip, index) in trips" :key="trip.id">
+            <div class="swipe-container rounded-xl shadow-sm border border-gray-200">
+                <div class="swipe-action">🗑️</div>
+                <div class="swipe-item bg-white p-3 flex items-center gap-2" 
+                     @touchstart="touchStart($event)" @touchmove="touchMove($event, $el)" @touchend="touchEndTrip($event, trip, $el)">
+                    <div class="flex flex-col gap-0.5">
+                        <button @click="moveTrip(index, -1)" class="text-[10px] text-gray-400">▲</button>
+                        <button @click="moveTrip(index, 1)" class="text-[10px] text-gray-400">▼</button>
+                    </div>
+                    <div @click="selectTrip(trip.id)" class="flex-grow cursor-pointer font-bold text-lg p-2" x-text="trip.name"></div>
+                    <button @click.stop="renameTrip(trip)" class="text-sm px-2 text-gray-500">Rename</button>
+                    <button @click.stop="duplicateTrip(trip)" class="text-xl px-2">⧉</button>
+                </div>
+            </div>
+        </template>
+        <button @click="createTrip()" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold">+ Create New Trip</button>
+    </div>
 
+    <!-- Packing List View -->
     <div x-show="view === 'list'" class="space-y-5">
+        <header class="flex justify-between items-center">
+            <button @click="view = 'home'" class="text-sm font-bold text-gray-500">← All Trips</button>
+            <button @click="toggleView()" class="text-xs font-bold uppercase bg-gray-200 px-3 py-1 rounded-full">Weather Forecast</button>
+        </header>
+
         <div class="w-full bg-gray-200 h-4 rounded-full overflow-hidden">
             <div class="h-full transition-all duration-500" :class="progress === 100 ? 'bg-green-500' : 'bg-blue-600'" :style="'width: ' + progress + '%'"></div>
         </div>
-
         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center">
             <div><p class="text-xs text-gray-500 uppercase font-bold">Total Duration</p><p class="text-2xl font-bold" x-text="(totalDays > 0 ? totalDays : '') + ' Days'"></p></div>
             <div><p class="text-xs text-gray-500 uppercase font-bold">Packed</p><p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p></div>
         </div>
-
         <div class="space-y-4">
-            <template x-for="(stop, index) in stops" :key="index">
+            <template x-for="(stop, index) in currentTrip.stops" :key="index">
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
-                    <input type="text" x-model="stop.city" @change="saveData()" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
-                    
+                    <input type="text" x-model="stop.city" @change="saveTrips()" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
                     <div class="relative date-wrapper" :data-index="index">
-                        <input type="text" data-input x-model="stop.dateRange" 
-                               class="w-full p-3 text-base border rounded-lg bg-white" 
-                               placeholder="Select dates..." readonly>
+                        <input type="text" data-input x-model="stop.dateRange" class="w-full p-3 text-base border rounded-lg bg-white" placeholder="Select dates..." readonly>
                         <button type="button" data-toggle class="absolute inset-0 w-full h-full z-20 cursor-pointer"></button>
                     </div>
-
                     <button x-show="index > 0" @click="removeStop(index)" class="w-full p-2 text-red-500 font-bold text-sm bg-red-50 rounded-lg">Remove Stop</button>
                 </div>
             </template>
             <button @click="addStop()" class="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold text-sm uppercase">+ Add City</button>
         </div>
-
         <button @click="populateData()" :disabled="loading" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold">
             <span x-text="loading ? 'Analyzing Destination...' : 'Generate Packing List'"></span>
         </button>
-
         <template x-for="category in ['Suitcase', 'Backpack', 'Toiletries']" :key="category">
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
                 <ul class="space-y-1">
-                    <template x-for="(item, index) in items.filter(i => i.cat === category).sort((a,b) => b.isAuto - a.isAuto)" :key="item.id">
-                        <li class="swipe-container">
+                    <template x-for="(item, index) in currentTrip.items.filter(i => i.cat === category).sort((a,b) => b.isAuto - a.isAuto)" :key="item.id">
+                        <li class="swipe-container rounded-lg">
                             <div class="swipe-action">🗑️</div>
-                            <div class="swipe-item flex items-center gap-2 p-2 bg-white"
-                                @touchstart="touchStart($event)" @touchmove="touchMove($event, $el)" @touchend="touchEnd($event, item, $el)">
+                            <div class="swipe-item flex items-center gap-2 p-2 bg-white" @touchstart="touchStart($event)" @touchmove="touchMove($event, $el)" @touchend="touchEndItem($event, item, $el)">
                                 <div class="flex flex-col gap-0.5">
                                     <button @click="moveItem(item, -1)" class="text-[10px] leading-none text-gray-400">▲</button>
                                     <button @click="moveItem(item, 1)" class="text-[10px] leading-none text-gray-400">▼</button>
@@ -80,8 +91,8 @@
                                     <span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
                                 </span>
                                 <div class="flex items-center gap-1">
-                                    <button @click="item.qty > 1 ? item.qty-- : 1; saveData()" class="w-6 h-6 bg-gray-100 rounded">-</button>
-                                    <button @click="item.qty++; saveData()" class="w-6 h-6 bg-gray-100 rounded">+</button>
+                                    <button @click="item.qty > 1 ? item.qty-- : 1; saveTrips()" class="w-6 h-6 bg-gray-100 rounded">-</button>
+                                    <button @click="item.qty++; saveTrips()" class="w-6 h-6 bg-gray-100 rounded">+</button>
                                     <button @click="toggleStatus(item)" class="w-8 h-8 rounded border-2 flex items-center justify-center font-bold" 
                                         :class="{'bg-green-500 border-green-500 text-white': item.status === '✓', 'bg-red-500 border-red-500 text-white': item.status === 'X'}" 
                                         x-text="item.status || '○'"></button>
@@ -93,7 +104,6 @@
                 <input type="text" x-model="manualInput" @keydown.enter="addManualItem(category, manualInput); manualInput=''" placeholder="+ Add custom..." class="w-full mt-4 p-3 border rounded-lg">
             </div>
         </template>
-
         <button @mousedown="startPress()" @mouseup="endPress()" @mouseleave="endPress()" @touchstart="startPress()" @touchend="endPress()"
             class="long-press-btn w-full p-4 bg-red-100 text-red-700 font-bold rounded-xl relative">
             Hold to Reset All Statuses
@@ -101,7 +111,11 @@
         </button>
     </div>
 
-    <div x-show="view === 'forecast'" class="space-y-3">
+    <!-- Weather Forecast View -->
+    <div x-show="view === 'forecast'" class="space-y-5">
+        <header class="flex justify-between items-center">
+            <button @click="view = 'list'" class="text-sm font-bold text-gray-500">← Back to List</button>
+        </header>
         <button @click="fetchForecast()" class="w-full p-3 bg-blue-500 text-white rounded-lg font-bold">Refresh Forecast</button>
         <template x-for="day in forecastData" :key="day.date + day.city">
             <div class="bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center" :class="day.isError ? 'opacity-60' : ''">
@@ -121,70 +135,66 @@
 <script>
     function packerApp() {
         return {
-            stops: [{city: '', dateRange: '', start: null, end: null}],
-            items: [], touchStartX: 0, loading: false, view: 'list', forecastData: [],
-            pressProgress: 0, pressTimer: null,
-
-            init() {
-                const saved = localStorage.getItem('packingData');
-                if (saved) { 
-                    const p = JSON.parse(saved); 
-                    this.stops = p.stops.map(s => ({...s, start: s.start ? new Date(s.start) : null, end: s.end ? new Date(s.end) : null})); 
-                    this.items = p.items; 
-                }
-                this.$nextTick(() => {
-                    this.stops.forEach((_, i) => this.initDatePicker(i));
-                });
-            },
-
-            saveData() { localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})); },
+            trips: [], currentTripId: null, view: 'home', loading: false, forecastData: [], pressProgress: 0, pressTimer: null, touchStartX: 0,
             
-            initDatePicker(idx) { 
+            init() {
+                const saved = localStorage.getItem('myTripsData');
+                if (saved) {
+                    this.trips = JSON.parse(saved).map(t => ({...t, stops: t.stops.map(s => ({...s, start: s.start ? new Date(s.start) : null, end: s.end ? new Date(s.end) : null}))}));
+                }
+            },
+            saveTrips() { localStorage.setItem('myTripsData', JSON.stringify(this.trips)); },
+            get currentTrip() { return this.trips.find(t => t.id === this.currentTripId); },
+            createTrip() { const name = prompt("Trip name?"); if (name) { const t = {id: Date.now(), name, stops: [{city: '', dateRange: '', start: null, end: null}], items: []}; this.trips.push(t); this.saveTrips(); this.selectTrip(t.id); } },
+            duplicateTrip(trip) { 
+                const name = prompt("New trip name?", trip.name + " (Copy)"); 
+                if (name) { 
+                    const newTrip = JSON.parse(JSON.stringify(trip)); 
+                    newTrip.stops = newTrip.stops.map(s => ({...s, start: s.start ? new Date(s.start) : null, end: s.end ? new Date(s.end) : null}));
+                    newTrip.id = Date.now(); 
+                    newTrip.name = name; 
+                    this.trips.push(newTrip); 
+                    this.saveTrips(); 
+                } 
+            },
+            renameTrip(trip) { const name = prompt("Rename trip:", trip.name); if (name) { trip.name = name; this.saveTrips(); } },
+            moveTrip(idx, dir) {
+                const newIdx = idx + dir;
+                if (newIdx < 0 || newIdx >= this.trips.length) return;
+                [this.trips[idx], this.trips[newIdx]] = [this.trips[newIdx], this.trips[idx]];
+                this.saveTrips();
+            },
+            selectTrip(id) { this.currentTripId = id; this.view = 'list'; this.$nextTick(() => this.currentTrip.stops.forEach((_, i) => this.initDatePicker(i))); },
+            
+            initDatePicker(idx) {
                 const el = document.querySelector(`.date-wrapper[data-index="${idx}"]`);
                 if (!el) return;
-                flatpickr(el, { 
-                    wrap: true,
-                    mode: "range", 
-                    dateFormat: "Y-m-d", 
-                    defaultDate: [this.stops[idx].start, this.stops[idx].end],
-                    onChange: (d) => { 
-                        if(d.length === 2) { 
-                            this.stops[idx].start = d[0]; 
-                            this.stops[idx].end = d[1]; 
-                            this.saveData(); 
-                        } 
-                    } 
-                }); 
+                flatpickr(el, { wrap: true, mode: "range", dateFormat: "Y-m-d", defaultDate: [this.currentTrip.stops[idx].start, this.currentTrip.stops[idx].end],
+                    onChange: (d) => { if(d.length === 2) { this.currentTrip.stops[idx].start = d[0]; this.currentTrip.stops[idx].end = d[1]; this.saveTrips(); } }
+                });
             },
-
-            addStop() { 
-                this.stops.push({city: '', dateRange: '', start: null, end: null}); 
-                this.$nextTick(() => this.initDatePicker(this.stops.length - 1)); 
-            },
-
+            addStop() { this.currentTrip.stops.push({city: '', dateRange: '', start: null, end: null}); this.$nextTick(() => this.initDatePicker(this.currentTrip.stops.length - 1)); },
+            removeStop(i) { this.currentTrip.stops.splice(i, 1); this.saveTrips(); },
+            
+            toggleView() { this.view = 'forecast'; this.fetchForecast(); },
+            toggleStatus(item) { item.status = (item.status === '✓') ? 'X' : (item.status === 'X' ? '' : '✓'); this.saveTrips(); },
             moveItem(item, dir) {
-                let catItems = this.items.filter(i => i.cat === item.cat);
-                catItems.sort((a, b) => b.isAuto - a.isAuto);
+                let catItems = this.currentTrip.items.filter(i => i.cat === item.cat).sort((a,b) => b.isAuto - a.isAuto);
                 const idx = catItems.findIndex(i => i.id === item.id);
                 const newIdx = idx + dir;
                 if (newIdx < 0 || newIdx >= catItems.length || item.isAuto !== catItems[newIdx].isAuto) return;
-                const i1 = this.items.findIndex(i => i.id === item.id);
-                const i2 = this.items.findIndex(i => i.id === catItems[newIdx].id);
-                [this.items[i1], this.items[i2]] = [this.items[i2], this.items[i1]];
-                this.saveData();
+                const i1 = this.currentTrip.items.findIndex(i => i.id === item.id);
+                const i2 = this.currentTrip.items.findIndex(i => i.id === catItems[newIdx].id);
+                [this.currentTrip.items[i1], this.currentTrip.items[i2]] = [this.currentTrip.items[i2], this.currentTrip.items[i1]];
+                this.saveTrips();
             },
-            
-            getEmoji(code, prob) {
-                if (prob >= 50) return '🌧️';
-                const fairMap = { 0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️' };
-                return fairMap[code] || '☀️';
-            },
+            addManualItem(cat, name) { if(name) this.currentTrip.items.push({id: Date.now(), name, qty: 1, cat, status: '', isAuto: false}); this.saveTrips(); },
             
             async fetchForecast() {
                 this.loading = true; this.forecastData = [];
                 const today = new Date();
                 const limitDate = new Date(); limitDate.setDate(today.getDate() + 15);
-                for (let s of this.stops) {
+                for (let s of this.currentTrip.stops) {
                     if (!s.city || !s.start || !s.end) continue;
                     try {
                         const g = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(s.city.split(',')[0])}&count=1`).then(r => r.json());
@@ -193,19 +203,20 @@
                             const dateStr = d.toISOString().split('T')[0];
                             const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' });
                             if (d > limitDate) { this.forecastData.push({ city: loc.name, date: dateStr, dayLabel, emoji: '🚫', isError: true }); continue; }
-                            const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&start_date=${dateStr}&end_date=${dateStr}&temperature_unit=fahrenheit&timezone=auto`).then(r => r.json());
+                            const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&start_date=${dateStr}&end_date=${dateStr}&temperature_unit=fahrenheit`).then(r => r.json());
                             this.forecastData.push({ city: loc.name, date: dateStr, dayLabel, max: Math.round(w.daily.temperature_2m_max[0]), min: Math.round(w.daily.temperature_2m_min[0]), prob: w.daily.precipitation_probability_max[0], emoji: this.getEmoji(w.daily.weather_code[0], w.daily.precipitation_probability_max[0]), isError: false });
                         }
-                    } catch(e) { console.error(e); }
+                    } catch(e) {}
                 }
                 this.loading = false;
             },
+            getEmoji(code, prob) { return prob >= 50 ? '🌧️' : ({0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️'}[code] || '☀️'); },
             
             async populateData() {
                 this.loading = true;
-                const totalDays = Math.max(1, this.totalDays);
+                const totalDays = Math.max(1, this.currentTrip.stops.reduce((a, s) => s.start && s.end ? a + Math.ceil((s.end - s.start)/86400000) : a, 0));
                 let pantsCount = 0, shortsCount = 0, needsPuffer = false, needsHoodie = false;
-                for (let s of this.stops) {
+                for (let s of this.currentTrip.stops) {
                     if (!s.start || !s.end) continue;
                     let isStopCold = false;
                     try {
@@ -216,27 +227,22 @@
                     const duration = Math.ceil((s.end - s.start) / 86400000);
                     if (isStopCold) { needsPuffer = true; pantsCount += Math.ceil(duration / 2.5); } else { needsHoodie = true; shortsCount += Math.ceil(duration / 2.5); }
                 }
-                const manualItems = this.items.filter(i => !i.isAuto);
                 const autoItems = [ {n: 'T-shirts', q: totalDays}, {n: 'Pants', q: Math.max(pantsCount, 0)}, {n: 'Shorts', q: Math.max(shortsCount, 0)}, {n: 'Underwear', q: totalDays}, {n: 'Socks', q: totalDays} ].filter(i => i.q > 0).map((d, i) => ({id: Date.now()+i, name: d.n, cat: 'Suitcase', qty: d.q, status: '', isAuto: true}));
                 if (needsPuffer) autoItems.push({id: Date.now()+99, name: 'Puffer Jacket', cat: 'Backpack', qty: 1, status: '', isAuto: true});
                 if (needsHoodie) autoItems.push({id: Date.now()+100, name: 'Light Hoodie', cat: 'Backpack', qty: 1, status: '', isAuto: true});
-                this.items = [...manualItems, ...autoItems];
-                this.loading = false; this.saveData();
+                this.currentTrip.items = [...this.currentTrip.items.filter(i => !i.isAuto), ...autoItems];
+                this.loading = false; this.saveTrips();
             },
 
-            removeStop(i) { this.stops.splice(i, 1); this.saveData(); },
-            toggleView() { this.view = this.view === 'list' ? 'forecast' : 'list'; if(this.view === 'forecast') this.fetchForecast(); },
-            startPress() { this.pressTimer = setInterval(() => { this.pressProgress += 5; if(this.pressProgress >= 100) { this.resetAll(); this.endPress(); } }, 50); },
+            startPress() { this.pressTimer = setInterval(() => { this.pressProgress += 5; if(this.pressProgress >= 100) { this.currentTrip.items.forEach(i => i.status = ''); this.saveTrips(); this.endPress(); } }, 50); },
             endPress() { clearInterval(this.pressTimer); this.pressProgress = 0; },
-            resetAll() { this.items.forEach(i => i.status = ''); this.saveData(); },
-            toggleStatus(item) { item.status = (item.status === '✓') ? 'X' : (item.status === 'X' ? '' : '✓'); this.saveData(); },
-            addManualItem(cat, name) { if(name) this.items.push({id: Date.now(), name, qty: 1, cat, status: '', isAuto: false}); this.saveData(); },
             touchStart(e) { this.touchStartX = e.touches[0].clientX; },
             touchMove(e, el) { const diff = e.touches[0].clientX - this.touchStartX; if (diff < 0) el.style.transform = `translateX(${diff}px)`; },
-            touchEnd(e, item, el) { if (this.touchStartX - e.changedTouches[0].clientX > 100) { this.items = this.items.filter(i => i.id !== item.id); this.saveData(); } else el.style.transform = 'translateX(0)'; },
-            get totalDays() { return this.stops.reduce((a, s) => s.start && s.end ? a + Math.ceil((s.end - s.start)/86400000) : a, 0); },
-            get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
-            get packedCount() { return this.items.filter(i => i.status === '✓').length; },
+            touchEndItem(e, item, el) { if (this.touchStartX - e.changedTouches[0].clientX > 100) { this.currentTrip.items = this.currentTrip.items.filter(i => i.id !== item.id); this.saveTrips(); } else el.style.transform = 'translateX(0)'; },
+            touchEndTrip(e, trip, el) { if (this.touchStartX - e.changedTouches[0].clientX > 100) { this.trips = this.trips.filter(t => t.id !== trip.id); this.saveTrips(); } else el.style.transform = 'translateX(0)'; },
+            get totalDays() { return this.currentTrip.stops.reduce((a, s) => s.start && s.end ? a + Math.ceil((s.end - s.start)/86400000) : a, 0); },
+            get activeItemsCount() { return this.currentTrip.items.filter(i => i.status !== 'X').length; },
+            get packedCount() { return this.currentTrip.items.filter(i => i.status === '✓').length; },
             get progress() { return this.activeItemsCount > 0 ? (this.packedCount / this.activeItemsCount) * 100 : 0; }
         }
     }
