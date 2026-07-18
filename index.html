@@ -14,6 +14,9 @@
         .swipe-action { position: absolute; right: 0; top: 0; height: 100%; width: 100px; display: flex; align-items: center; justify-content: flex-end; padding-right: 20px; color: #dc2626; z-index: 1; font-size: 1.5rem; }
         .long-press-btn { transition: background 0.3s ease; position: relative; overflow: hidden; }
         .progress-bar { position: absolute; bottom: 0; left: 0; height: 4px; background: #991b1b; width: 0%; transition: width 0.1s linear; }
+        /* Force pointer events through the input */
+        .date-input-wrapper { cursor: pointer; }
+        .date-input-wrapper input { pointer-events: none; }
     </style>
 </head>
 <body class="bg-gray-50 p-4">
@@ -40,10 +43,14 @@
             <template x-for="(stop, index) in stops" :key="index">
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
                     <input type="text" x-model="stop.city" @change="saveData()" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
-                    <input type="text" :id="'date-input-' + index" x-model="stop.dateRange" 
-                           class="w-full p-3 text-base border rounded-lg bg-white" 
-                           placeholder="Select dates..." readonly 
-                           autocomplete="off" aria-autocomplete="none">
+                    
+                    <!-- Calendar Trigger Wrapper -->
+                    <div class="date-input-wrapper relative" :id="'date-wrapper-' + index">
+                        <input type="text" :id="'date-input-' + index" x-model="stop.dateRange" 
+                               class="w-full p-3 text-base border rounded-lg bg-white" 
+                               placeholder="Select dates..." readonly>
+                    </div>
+
                     <button x-show="index > 0" @click="removeStop(index)" class="w-full p-2 text-red-500 font-bold text-sm bg-red-50 rounded-lg">Remove Stop</button>
                 </div>
             </template>
@@ -132,7 +139,8 @@
             saveData() { localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})); },
             
             initDatePicker(idx) { 
-                flatpickr(`#date-input-${idx}`, { 
+                flatpickr(`#date-wrapper-${idx}`, { 
+                    input: `#date-input-${idx}`,
                     mode: "range", dateFormat: "Y-m-d", 
                     defaultDate: [this.stops[idx].start, this.stops[idx].end],
                     onChange: (d) => { if(d.length === 2) { this.stops[idx].start = d[0]; this.stops[idx].end = d[1]; this.saveData(); } } 
