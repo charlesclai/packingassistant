@@ -21,12 +21,10 @@
     </header>
 
     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center">
-        <!-- Displayed blank if totalDays is empty -->
         <div><p class="text-xs text-gray-500 uppercase font-bold">Total Duration</p><p class="text-2xl font-bold" x-text="totalDays ? totalDays + ' Days' : ''"></p></div>
         <div><p class="text-xs text-gray-500 uppercase font-bold">Packed</p><p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p></div>
     </div>
 
-    <!-- Itinerary -->
     <div class="space-y-4">
         <template x-for="(stop, index) in stops" :key="index">
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
@@ -40,7 +38,6 @@
 
     <button @click="populateData()" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold">Generate Packing List</button>
 
-    <!-- Lists -->
     <div class="space-y-5">
         <template x-for="category in ['Suitcase', 'Backpack', 'Dopp Kit']" :key="category">
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
@@ -96,7 +93,8 @@
                 let catItems = this.items.filter(i => i.cat === cat);
                 const idx = catItems.findIndex(i => i.id === item.id);
                 const nIdx = idx + dir;
-                if (nIdx >= 0 && nIdx < catItems.length && catItems[idx].isAuto === catItems[nIdx].isAuto) {
+                // Allow movement if same type OR just moving within the list
+                if (nIdx >= 0 && nIdx < catItems.length) {
                     const temp = catItems[idx]; catItems[idx] = catItems[nIdx]; catItems[nIdx] = temp;
                     this.items = [...this.items.filter(i => i.cat !== cat), ...catItems];
                 }
@@ -104,10 +102,7 @@
             toggleStatus(item) { const s = ['', '✓', 'X']; item.status = s[(s.indexOf(item.status) + 1) % 3]; },
             statusClass(item) { return {'bg-green-500 text-white': item.status === '✓', 'bg-red-500 text-white': item.status === 'X', 'bg-white': item.status === ''}; },
             addManualItem(cat, name) { if(name) this.items.push({id: Date.now(), name, qty: 1, cat, status: '', isAuto: false}); },
-            get totalDays() { 
-                const days = this.stops.reduce((a, s) => s.start && s.end ? a + Math.ceil((s.end - s.start)/86400000) : a, 0); 
-                return days > 0 ? days : ''; 
-            },
+            get totalDays() { const days = this.stops.reduce((a, s) => s.start && s.end ? a + Math.ceil((s.end - s.start)/86400000) : a, 0); return days > 0 ? days : ''; },
             get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
             get packedCount() { return this.items.filter(i => i.status === '✓').length; },
             get progress() { return this.activeItemsCount > 0 ? (this.packedCount / this.activeItemsCount) * 100 : 0; },
@@ -125,7 +120,8 @@
                     {n: shorts > 0 ? 'Shorts' : 'Pants', c: 'Suitcase', q: Math.max(1, shorts > 0 ? shorts : pants)}, 
                     {n: 'Underwear', c: 'Suitcase', q: days}, 
                     {n: 'Socks', c: 'Suitcase', q: days},
-                    {n: 'Toothbrush', c: 'Dopp Kit', q: 1}, {n: 'Tongue Scraper', c: 'Dopp Kit', q: 1}, {n: 'Floss Picks', c: 'Dopp Kit', q: days},
+                    {n: 'Toothbrush', c: 'Dopp Kit', q: 1}, {n: 'Toothpaste', c: 'Dopp Kit', q: 1}, {n: 'Hairbrush', c: 'Dopp Kit', q: 1},
+                    {n: 'Tongue Scraper', c: 'Dopp Kit', q: 1}, {n: 'Floss Picks', c: 'Dopp Kit', q: days},
                     {n: 'Invisalign', c: 'Dopp Kit', q: 1}, {n: 'Denture Tablets', c: 'Dopp Kit', q: days}, {n: 'AM Moisturizer', c: 'Dopp Kit', q: 1},
                     {n: 'PM Moisturizer', c: 'Dopp Kit', q: 1}, {n: 'Vitamin C', c: 'Dopp Kit', q: 1}, {n: 'Retinal', c: 'Dopp Kit', q: 1},
                     {n: 'Facewash', c: 'Dopp Kit', q: 1}, {n: 'Shaver', c: 'Dopp Kit', q: 1}, {n: 'Nail Clippers', c: 'Dopp Kit', q: 1}, {n: 'Tweezers', c: 'Dopp Kit', q: 1}
