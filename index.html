@@ -10,10 +10,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <style>
+        .touch-pan-y { touch-action: pan-y; }
         .swipe-item { transition: transform 0.1s ease-out; }
-        .sortable-chosen { @apply shadow-2xl scale-105 bg-blue-50 cursor-grabbing; opacity: 0.9; }
-        .sortable-ghost { @apply opacity-30 bg-gray-100; }
-        .handle { touch-action: none; cursor: grab; }
+        .sortable-chosen { @apply shadow-2xl scale-105 bg-blue-50 cursor-grabbing; }
     </style>
 </head>
 <body class="bg-gray-50 p-4" x-data="packerApp()" x-init="init()">
@@ -64,15 +63,14 @@
         <template x-for="category in ['Suitcase', 'Backpack']" :key="category">
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
-                
-                <ul class="space-y-1" x-sort="onSort($item, $position, category)" x-sort:group="items" x-sort:handle=".handle">
+                <ul class="space-y-1" x-sort="onSort($item, $position, category)" x-sort:group="items">
                     <template x-for="item in items.filter(i => i.cat === category).sort((a, b) => b.isAuto - a.isAuto)" :key="item.id">
-                        <li class="flex items-center justify-between p-2 border-b border-gray-50 bg-white swipe-item"
+                        <li class="flex items-center justify-between p-2 border-b border-gray-50 touch-pan-y swipe-item bg-white"
                             @touchstart="touchStart($event)"
                             @touchmove="touchMove($event, $el)"
                             @touchend="touchEnd($event, item, $el)">
                             
-                            <div class="handle p-4 -ml-2 mr-1 text-gray-300 hover:text-blue-500">
+                            <div x-sort:item="item" class="p-4 -ml-2 mr-1 cursor-grab text-gray-300 hover:text-blue-500 touch-none select-none">
                                 <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M4 9h16v2H4zm0 4h16v2H4z"/></svg>
                             </div>
                             
@@ -94,6 +92,8 @@
             </div>
         </template>
     </div>
+
+    <button @click="resetStatuses()" class="w-full p-4 border border-gray-300 rounded-xl text-gray-600 font-bold text-sm uppercase tracking-widest hover:bg-gray-100">Reset All Statuses</button>
 </div>
 
 <script>
@@ -129,12 +129,12 @@
             addStop() { this.stops.push({city: '', dateRange: '', start: null, end: null}); this.$nextTick(() => this.initDatePicker(this.stops.length - 1)); },
             removeStop(index) { this.stops.splice(index, 1); },
             removeItem(item) { const index = this.items.findIndex(i => i.id === item.id); if (index !== -1) this.items.splice(index, 1); },
+            resetStatuses() { this.items.forEach(i => i.status = ''); },
             
             touchStart(e) { this.touchStartX = e.touches[0].clientX; },
             touchMove(e, el) {
-                if (e.target.closest('.handle')) return;
                 const diff = e.touches[0].clientX - this.touchStartX;
-                if (diff < -20) el.style.transform = `translateX(${diff}px)`;
+                if (diff < 0) el.style.transform = `translateX(${diff}px)`;
             },
             touchEnd(e, item, el) {
                 const diff = e.changedTouches[0].clientX - this.touchStartX;
@@ -155,21 +155,42 @@
                 let shortsTotalDays = 0;
                 let pantsTotalDays = 0;
                 let outerList = new Set();
+
                 this.stops.forEach(stop => {
                     if (!stop.start || !stop.end) return;
                     const days = Math.ceil((stop.end - stop.start) / 86400000);
                     totalDuration += days;
+                    
                     const month = new Date(stop.start).getMonth();
                     const isCold = month <= 2 || month >= 10;
                     const city = stop.city.toLowerCase();
                     const isWarmCity = city.includes('san diego') || city.includes('palm springs') || city.includes('miami');
-                    if (isCold && !isWarmCity) { pantsTotalDays += days; outerList.add('Puffer Jacket'); } else { shortsTotalDays += days; outerList.add('Light Hoodie'); }
+                    
+                    if (isCold && !isWarmCity) {
+                        pantsTotalDays += days;
+                        outerList.add('Puffer Jacket');
+                    } else {
+                        shortsTotalDays += days;
+                        outerList.add('Light Hoodie');
+                    }
                 });
-                let newItems = [{id: 1, name: 'T-shirts', qty: Math.max(1, totalDuration), cat: 'Suitcase', status: '', isAuto: true}];
+                
+                let newItems = [
+                    {id: 1, name: 'T-shirts', qty: Math.max(1, totalDuration), cat: 'Suitcase', status: '', isAuto: true}
+                ];
+
                 if (shortsTotalDays > 0) newItems.push({id: 4, name: 'Shorts', qty: Math.max(1, Math.ceil(shortsTotalDays / 2.5)), cat: 'Suitcase', status: '', isAuto: true});
                 if (pantsTotalDays > 0) newItems.push({id: 5, name: 'Pants', qty: Math.max(1, Math.ceil(pantsTotalDays / 2.5)), cat: 'Suitcase', status: '', isAuto: true});
-                newItems.push({id: 2, name: 'Underwear', qty: Math.max(1, totalDuration), cat: 'Suitcase', status: '', isAuto: true}, {id: 3, name: 'Socks', qty: Math.max(1, totalDuration), cat: 'Suitcase', status: '', isAuto: true});
-                outerList.forEach((name, idx) => newItems.push({id: 10 + idx, name: name, qty: 1, cat: 'Backpack', status: '', isAuto: true}));
+                
+                newItems.push(
+                    {id: 2, name: 'Underwear', qty: Math.max(1, totalDuration), cat: 'Suitcase', status: '', isAuto: true},
+                    {id: 3, name: 'Socks', qty: Math.max(1, totalDuration), cat: 'Suitcase', status: '', isAuto: true}
+                );
+
+                outerList.forEach((name, idx) => {
+                    newItems.push({id: 10 + idx, name: name, qty: 1, cat: 'Backpack', status: '', isAuto: true});
+                });
+                
                 this.items = [...this.items.filter(i => !i.isAuto), ...newItems];
             }
         }
