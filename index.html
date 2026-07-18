@@ -48,7 +48,10 @@
     <div x-show="view === 'list'" class="space-y-5">
         <header class="flex justify-between items-center">
             <button @click="view = 'home'" class="text-sm font-bold text-gray-500">← All Trips</button>
-            <button @click="toggleView()" class="text-xs font-bold uppercase bg-gray-200 px-3 py-1 rounded-full">Weather Forecast</button>
+            <div class="flex gap-2">
+                <button @click="shareList()" class="text-xs font-bold uppercase bg-blue-100 text-blue-700 px-3 py-1 rounded-full">📋 Share</button>
+                <button @click="toggleView()" class="text-xs font-bold uppercase bg-gray-200 px-3 py-1 rounded-full">🌤️ Forecast</button>
+            </div>
         </header>
 
         <div class="w-full bg-gray-200 h-4 rounded-full overflow-hidden">
@@ -166,6 +169,22 @@
             },
             selectTrip(id) { this.currentTripId = id; this.view = 'list'; this.$nextTick(() => this.currentTrip.stops.forEach((_, i) => this.initDatePicker(i))); },
             
+            shareList() {
+                let text = `Packing List for ${this.currentTrip.name}:\n\n`;
+                ['Suitcase', 'Backpack', 'Toiletries'].forEach(cat => {
+                    const items = this.currentTrip.items.filter(i => i.cat === cat);
+                    if (items.length > 0) {
+                        text += `${cat.toUpperCase()}:\n`;
+                        items.forEach(i => {
+                            const status = i.status === '✓' ? '[✓]' : (i.status === 'X' ? '[X]' : '[ ]');
+                            text += `${status} ${i.name} ${i.qty > 1 ? '(' + i.qty + ')' : ''}\n`;
+                        });
+                        text += `\n`;
+                    }
+                });
+                navigator.clipboard.writeText(text).then(() => alert("List copied to clipboard!"));
+            },
+
             initDatePicker(idx) {
                 const el = document.querySelector(`.date-wrapper[data-index="${idx}"]`);
                 if (!el) return;
@@ -216,6 +235,7 @@
                 this.loading = true;
                 const totalDays = Math.max(1, this.currentTrip.stops.reduce((a, s) => s.start && s.end ? a + Math.ceil((s.end - s.start)/86400000) : a, 0));
                 let pantsCount = 0, shortsCount = 0, needsPuffer = false, needsHoodie = false;
+                
                 for (let s of this.currentTrip.stops) {
                     if (!s.start || !s.end) continue;
                     let isStopCold = false;
@@ -224,12 +244,24 @@
                         const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.results[0].latitude}&longitude=${g.results[0].longitude}&daily=temperature_2m_max&start_date=${s.start.toISOString().split('T')[0]}&end_date=${s.start.toISOString().split('T')[0]}&temperature_unit=fahrenheit&timezone=auto`).then(r => r.json());
                         if (w.daily.temperature_2m_max[0] < 60) isStopCold = true;
                     } catch(e) { isStopCold = (s.start.getMonth() >= 10 || s.start.getMonth() <= 2); }
+                    
+                    if (isStopCold) { needsPuffer = true; } else { needsHoodie = true; }
+                    
                     const duration = Math.ceil((s.end - s.start) / 86400000);
-                    if (isStopCold) { needsPuffer = true; pantsCount += Math.ceil(duration / 2.5); } else { needsHoodie = true; shortsCount += Math.ceil(duration / 2.5); }
+                    if (isStopCold) { pantsCount += Math.ceil(duration / 2.5); } else { shortsCount += Math.ceil(duration / 2.5); }
                 }
-                const autoItems = [ {n: 'T-shirts', q: totalDays}, {n: 'Pants', q: Math.max(pantsCount, 0)}, {n: 'Shorts', q: Math.max(shortsCount, 0)}, {n: 'Underwear', q: totalDays}, {n: 'Socks', q: totalDays} ].filter(i => i.q > 0).map((d, i) => ({id: Date.now()+i, name: d.n, cat: 'Suitcase', qty: d.q, status: '', isAuto: true}));
+                
+                const autoItems = [ 
+                    {n: 'T-shirts', q: totalDays}, 
+                    {n: 'Pants', q: Math.max(pantsCount, 0)}, 
+                    {n: 'Shorts', q: Math.max(shortsCount, 0)}, 
+                    {n: 'Underwear', q: totalDays}, 
+                    {n: 'Socks', q: totalDays} 
+                ].filter(i => i.q > 0).map((d, i) => ({id: Date.now()+i, name: d.n, cat: 'Suitcase', qty: d.q, status: '', isAuto: true}));
+                
                 if (needsPuffer) autoItems.push({id: Date.now()+99, name: 'Puffer Jacket', cat: 'Backpack', qty: 1, status: '', isAuto: true});
                 if (needsHoodie) autoItems.push({id: Date.now()+100, name: 'Light Hoodie', cat: 'Backpack', qty: 1, status: '', isAuto: true});
+                
                 this.currentTrip.items = [...this.currentTrip.items.filter(i => !i.isAuto), ...autoItems];
                 this.loading = false; this.saveTrips();
             },
