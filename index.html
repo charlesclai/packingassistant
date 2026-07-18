@@ -12,6 +12,8 @@
         .swipe-container { position: relative; overflow: hidden; background: #fee2e2; border-bottom: 1px solid #f3f4f6; }
         .swipe-item { position: relative; z-index: 10; transition: transform 0.1s ease-out; touch-action: pan-y; }
         .swipe-action { position: absolute; right: 0; top: 0; height: 100%; width: 100px; display: flex; align-items: center; justify-content: flex-end; padding-right: 20px; color: #dc2626; z-index: 1; font-size: 1.5rem; }
+        .long-press-btn { transition: background 0.3s ease; position: relative; overflow: hidden; }
+        .progress-bar { position: absolute; bottom: 0; left: 0; height: 4px; background: #991b1b; width: 0%; transition: width 0.1s linear; }
     </style>
 </head>
 <body class="bg-gray-50 p-4">
@@ -30,14 +32,14 @@
         </div>
 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center">
-            <div><p class="text-xs text-gray-500 uppercase font-bold">Total Duration</p><p class="text-2xl font-bold" x-text="totalDays + ' Days'"></p></div>
+            <div><p class="text-xs text-gray-500 uppercase font-bold">Total Duration</p><p class="text-2xl font-bold" x-text="(totalDays > 0 ? totalDays : '') + ' Days'"></p></div>
             <div><p class="text-xs text-gray-500 uppercase font-bold">Packed</p><p class="text-2xl font-bold" x-text="packedCount + '/' + activeItemsCount"></p></div>
         </div>
 
         <div class="space-y-4">
             <template x-for="(stop, index) in stops" :key="index">
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
-                    <input type="text" x-model="stop.city" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
+                    <input type="text" x-model="stop.city" @change="saveData()" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
                     <input type="text" :id="'date-input-' + index" x-model="stop.dateRange" class="w-full p-3 text-base border rounded-lg bg-white" placeholder="Select dates..." readonly>
                     <button x-show="index > 0" @click="removeStop(index)" class="w-full p-2 text-red-500 font-bold text-sm bg-red-50 rounded-lg">Remove Stop</button>
                 </div>
@@ -63,8 +65,8 @@
                                     <span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
                                 </span>
                                 <div class="flex items-center gap-1">
-                                    <button @click="item.qty > 1 ? item.qty-- : 1" class="w-6 h-6 bg-gray-100 rounded">-</button>
-                                    <button @click="item.qty++" class="w-6 h-6 bg-gray-100 rounded">+</button>
+                                    <button @click="item.qty > 1 ? item.qty-- : 1; saveData()" class="w-6 h-6 bg-gray-100 rounded">-</button>
+                                    <button @click="item.qty++; saveData()" class="w-6 h-6 bg-gray-100 rounded">+</button>
                                     <button @click="toggleStatus(item)" class="w-8 h-8 rounded border-2 flex items-center justify-center font-bold" 
                                         :class="{'bg-green-500 border-green-500 text-white': item.status === '✓', 'bg-red-500 border-red-500 text-white': item.status === 'X'}" 
                                         x-text="item.status || '○'"></button>
@@ -76,20 +78,22 @@
                 <input type="text" x-model="manualInput" @keydown.enter="addManualItem(category, manualInput); manualInput=''" placeholder="+ Add custom..." class="w-full mt-4 p-3 border rounded-lg">
             </div>
         </template>
+
+        <button @mousedown="startPress()" @mouseup="endPress()" @mouseleave="endPress()" @touchstart="startPress()" @touchend="endPress()"
+            class="long-press-btn w-full p-4 bg-red-100 text-red-700 font-bold rounded-xl relative">
+            Hold to Reset All Statuses
+            <div class="progress-bar" :style="'width: ' + pressProgress + '%'"></div>
+        </button>
     </div>
 
     <!-- Weather Forecast View -->
     <div x-show="view === 'forecast'" class="space-y-3">
         <button @click="fetchForecast()" class="w-full p-3 bg-blue-500 text-white rounded-lg font-bold">Refresh Forecast</button>
-        <div x-show="loading" class="text-center py-10 text-gray-400">Fetching live weather...</div>
         <template x-for="day in forecastData" :key="day.date + day.city">
             <div class="bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center" :class="day.isError ? 'opacity-60' : ''">
                 <div class="flex items-center gap-3">
                     <span class="text-2xl" x-text="day.emoji"></span>
-                    <div>
-                        <p class="font-bold text-sm" x-text="day.city"></p>
-                        <p class="text-xs text-gray-400" x-text="day.date"></p>
-                    </div>
+                    <div><p class="font-bold text-sm" x-text="day.city"></p><p class="text-xs text-gray-400" x-text="day.date"></p></div>
                 </div>
                 <div class="text-right">
                     <p class="font-bold text-lg" x-text="day.isError ? 'Not Yet Available' : day.max + '°F / ' + day.min + '°F'"></p>
@@ -105,38 +109,39 @@
         return {
             stops: [{city: '', dateRange: '', start: null, end: null}],
             items: [], touchStartX: 0, loading: false, view: 'list', forecastData: [],
-            
-            getEmoji(code, prob) {
-                // If high probability of rain, return rain emoji
-                if (prob >= 50) return '🌧️'; 
-                
-                // If low probability, ignore 'rainy' codes (like 51, 61, 80) and default to fair
-                const fairMap = { 0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️' };
-                return fairMap[code] || '☀️';
-            },
-            
+            pressProgress: 0, pressTimer: null,
+
             init() {
                 const saved = localStorage.getItem('packingData');
-                if (saved) { const p = JSON.parse(saved); this.stops = p.stops; this.items = p.items; }
-                this.$nextTick(() => this.stops.forEach((_, i) => this.initDatePicker(i)));
+                if (saved) { 
+                    const p = JSON.parse(saved); 
+                    this.stops = p.stops.map(s => ({...s, start: s.start ? new Date(s.start) : null, end: s.end ? new Date(s.end) : null})); 
+                    this.items = p.items; 
+                    this.$nextTick(() => this.stops.forEach((_, i) => this.initDatePicker(i)));
+                } else {
+                    this.initDatePicker(0);
+                }
             },
+            saveData() { localStorage.setItem('packingData', JSON.stringify({stops: this.stops, items: this.items})); },
             
             initDatePicker(idx) { 
                 flatpickr(`#date-input-${idx}`, { 
                     mode: "range", dateFormat: "Y-m-d", 
-                    onChange: (d) => { if(d.length === 2) { this.stops[idx].start = d[0]; this.stops[idx].end = d[1]; } } 
+                    defaultDate: [this.stops[idx].start, this.stops[idx].end],
+                    onChange: (d) => { if(d.length === 2) { this.stops[idx].start = d[0]; this.stops[idx].end = d[1]; this.saveData(); } } 
                 }); 
             },
             
-            addStop() { this.stops.push({city: '', dateRange: '', start: null, end: null}); this.$nextTick(() => this.initDatePicker(this.stops.length - 1)); },
-            removeStop(i) { this.stops.splice(i, 1); },
-            toggleView() { this.view = this.view === 'list' ? 'forecast' : 'list'; if(this.view === 'forecast') this.fetchForecast(); },
+            getEmoji(code, prob) {
+                if (prob >= 50) return '🌧️';
+                const fairMap = { 0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️' };
+                return fairMap[code] || '☀️';
+            },
             
             async fetchForecast() {
                 this.loading = true; this.forecastData = [];
                 const today = new Date('2026-07-18');
                 const limitDate = new Date(today); limitDate.setDate(today.getDate() + 15);
-
                 for (let s of this.stops) {
                     if (!s.city || !s.start || !s.end) continue;
                     try {
@@ -144,19 +149,9 @@
                         const loc = g.results[0];
                         for (let d = new Date(s.start); d <= s.end; d.setDate(d.getDate() + 1)) {
                             const dateStr = d.toISOString().split('T')[0];
-                            if (d > limitDate) {
-                                this.forecastData.push({ city: loc.name, date: dateStr, emoji: '🚫', isError: true });
-                                continue;
-                            }
+                            if (d > limitDate) { this.forecastData.push({ city: loc.name, date: dateStr, emoji: '🚫', isError: true }); continue; }
                             const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&start_date=${dateStr}&end_date=${dateStr}&temperature_unit=fahrenheit&timezone=auto`).then(r => r.json());
-                            this.forecastData.push({ 
-                                city: loc.name, date: dateStr, 
-                                max: Math.round(w.daily.temperature_2m_max[0]), 
-                                min: Math.round(w.daily.temperature_2m_min[0]),
-                                prob: w.daily.precipitation_probability_max[0],
-                                emoji: this.getEmoji(w.daily.weather_code[0], w.daily.precipitation_probability_max[0]),
-                                isError: false 
-                            });
+                            this.forecastData.push({ city: loc.name, date: dateStr, max: Math.round(w.daily.temperature_2m_max[0]), min: Math.round(w.daily.temperature_2m_min[0]), prob: w.daily.precipitation_probability_max[0], emoji: this.getEmoji(w.daily.weather_code[0], w.daily.precipitation_probability_max[0]), isError: false });
                         }
                     } catch(e) { console.error(e); }
                 }
@@ -166,9 +161,7 @@
             async populateData() {
                 this.loading = true;
                 const totalDays = Math.max(1, this.totalDays);
-                let pantsCount = 0, shortsCount = 0;
-                let needsPuffer = false, needsHoodie = false;
-
+                let pantsCount = 0, shortsCount = 0, needsPuffer = false, needsHoodie = false;
                 for (let s of this.stops) {
                     if (!s.start || !s.end) continue;
                     let isStopCold = false;
@@ -177,37 +170,26 @@
                         const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.results[0].latitude}&longitude=${g.results[0].longitude}&daily=temperature_2m_max&start_date=${s.start.toISOString().split('T')[0]}&end_date=${s.start.toISOString().split('T')[0]}&temperature_unit=fahrenheit&timezone=auto`).then(r => r.json());
                         if (w.daily.temperature_2m_max[0] < 60) isStopCold = true;
                     } catch(e) { isStopCold = (s.start.getMonth() >= 10 || s.start.getMonth() <= 2); }
-
                     const duration = Math.ceil((s.end - s.start) / 86400000);
-                    if (isStopCold) { needsPuffer = true; pantsCount += Math.ceil(duration / 2.5); } 
-                    else { needsHoodie = true; shortsCount += Math.ceil(duration / 2.5); }
+                    if (isStopCold) { needsPuffer = true; pantsCount += Math.ceil(duration / 2.5); } else { needsHoodie = true; shortsCount += Math.ceil(duration / 2.5); }
                 }
-
-                let def = [
-                    {n: 'T-shirts', q: totalDays},
-                    {n: 'Pants', q: Math.max(pantsCount, 0)},
-                    {n: 'Shorts', q: Math.max(shortsCount, 0)},
-                    {n: 'Underwear', q: totalDays},
-                    {n: 'Socks', q: totalDays}
-                ].filter(item => item.q > 0);
-
-                let outer = [];
-                if (needsPuffer) outer.push('Puffer Jacket');
-                if (needsHoodie) outer.push('Light Hoodie');
-
-                this.items = [
-                    ...this.items.filter(i => !i.isAuto),
-                    ...def.map((d, i) => ({id: Date.now()+i, name: d.n, cat: 'Suitcase', qty: d.q, status: '', isAuto: true})),
-                    ...outer.map((n, i) => ({id: Date.now()+i+100, name: n, cat: 'Backpack', qty: 1, status: '', isAuto: true}))
-                ];
-                this.loading = false;
+                this.items = [ ...this.items.filter(i => !i.isAuto), {n: 'T-shirts', q: totalDays}, {n: 'Pants', q: Math.max(pantsCount, 0)}, {n: 'Shorts', q: Math.max(shortsCount, 0)}, {n: 'Underwear', q: totalDays}, {n: 'Socks', q: totalDays} ].filter(i => i.q > 0).map((d, i) => ({id: Date.now()+i, name: d.n, cat: 'Suitcase', qty: d.q, status: '', isAuto: true}));
+                if (needsPuffer) this.items.push({id: Date.now()+99, name: 'Puffer Jacket', cat: 'Backpack', qty: 1, status: '', isAuto: true});
+                if (needsHoodie) this.items.push({id: Date.now()+100, name: 'Light Hoodie', cat: 'Backpack', qty: 1, status: '', isAuto: true});
+                this.loading = false; this.saveData();
             },
 
-            addManualItem(cat, name) { if(name) this.items.push({id: Date.now(), name, qty: 1, cat, status: '', isAuto: false}); },
-            toggleStatus(item) { const s = ['', '✓', 'X']; item.status = s[(s.indexOf(item.status) + 1) % 3]; },
+            addStop() { this.stops.push({city: '', dateRange: '', start: null, end: null}); this.$nextTick(() => this.initDatePicker(this.stops.length - 1)); },
+            removeStop(i) { this.stops.splice(i, 1); this.saveData(); },
+            toggleView() { this.view = this.view === 'list' ? 'forecast' : 'list'; if(this.view === 'forecast') this.fetchForecast(); },
+            startPress() { this.pressTimer = setInterval(() => { this.pressProgress += 5; if(this.pressProgress >= 100) { this.resetAll(); this.endPress(); } }, 50); },
+            endPress() { clearInterval(this.pressTimer); this.pressProgress = 0; },
+            resetAll() { this.items.forEach(i => i.status = ''); this.saveData(); },
+            toggleStatus(item) { item.status = (item.status === '✓') ? 'X' : (item.status === 'X' ? '' : '✓'); this.saveData(); },
+            addManualItem(cat, name) { if(name) this.items.push({id: Date.now(), name, qty: 1, cat, status: '', isAuto: false}); this.saveData(); },
             touchStart(e) { this.touchStartX = e.touches[0].clientX; },
             touchMove(e, el) { const diff = e.touches[0].clientX - this.touchStartX; if (diff < 0) el.style.transform = `translateX(${diff}px)`; },
-            touchEnd(e, item, el) { if (this.touchStartX - e.changedTouches[0].clientX > 100) this.items = this.items.filter(i => i.id !== item.id); else el.style.transform = 'translateX(0)'; },
+            touchEnd(e, item, el) { if (this.touchStartX - e.changedTouches[0].clientX > 100) { this.items = this.items.filter(i => i.id !== item.id); this.saveData(); } else el.style.transform = 'translateX(0)'; },
             get totalDays() { return this.stops.reduce((a, s) => s.start && s.end ? a + Math.ceil((s.end - s.start)/86400000) : a, 0); },
             get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
             get packedCount() { return this.items.filter(i => i.status === '✓').length; },
