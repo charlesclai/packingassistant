@@ -11,6 +11,11 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <style>
         .touch-pan-y { touch-action: pan-y; }
+        .swipe-item { transition: transform 0.1s ease-out; }
+        /* Dragging animation */
+        .sortable-chosen {
+            @apply shadow-2xl scale-105 bg-blue-50 cursor-grabbing;
+        }
     </style>
 </head>
 <body class="bg-gray-50 p-4" x-data="packerApp()" x-init="init()">
@@ -36,7 +41,6 @@
         </div>
     </div>
 
-    <!-- Itinerary -->
     <div class="space-y-4">
         <template x-for="(stop, index) in stops" :key="index">
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
@@ -56,16 +60,17 @@
 
     <button @click="populateClothing()" class="w-full p-5 bg-gray-900 text-white rounded-xl text-lg font-bold hover:bg-black transition-colors">Generate Packing List</button>
 
-    <!-- Lists -->
     <div class="space-y-5">
         <template x-for="category in ['Suitcase', 'Backpack']" :key="category">
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
-                <ul class="space-y-1" x-sort="onSort($item, $position, category)">
+                <!-- Added x-sort:group to enable drag and drop -->
+                <ul class="space-y-1" x-sort="onSort($item, $position, category)" x-sort:group="items">
                     <template x-for="item in items.filter(i => i.cat === category).sort((a, b) => b.isAuto - a.isAuto)" :key="item.id">
-                        <li class="flex items-center justify-between p-2 border-b border-gray-50 touch-pan-y"
+                        <li class="flex items-center justify-between p-2 border-b border-gray-50 touch-pan-y swipe-item bg-white"
                             @touchstart="touchStart($event)"
-                            @touchend="touchEnd($event, item)">
+                            @touchmove="touchMove($event, $el)"
+                            @touchend="touchEnd($event, item, $el)">
                             <div x-sort:item="item" class="cursor-grab text-gray-300 mr-3 hover:text-gray-500 select-none">⠿</div>
                             <span :class="{'line-through text-gray-400': item.status !== '', 'font-bold text-blue-600': item.isAuto && item.status === '', 'text-black': !item.isAuto && item.status === ''}" class="text-base flex-grow px-2 py-1">
                                 <span x-text="item.name"></span><span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
@@ -94,7 +99,7 @@
         return {
             stops: [{city: '', dateRange: '', start: null, end: null}],
             items: [],
-            touchX: 0,
+            touchStartX: 0,
             
             init() {
                 const saved = localStorage.getItem('packingData');
@@ -124,8 +129,15 @@
             removeItem(item) { const index = this.items.findIndex(i => i.id === item.id); if (index !== -1) this.items.splice(index, 1); },
             resetStatuses() { this.items.forEach(i => i.status = ''); },
             
-            touchStart(e) { this.touchX = e.changedTouches[0].screenX; },
-            touchEnd(e, item) { const endX = e.changedTouches[0].screenX; if (Math.abs(this.touchX - endX) > 100) this.removeItem(item); },
+            touchStart(e) { this.touchStartX = e.touches[0].clientX; },
+            touchMove(e, el) {
+                const diff = e.touches[0].clientX - this.touchStartX;
+                if (diff < 0) el.style.transform = `translateX(${diff}px)`;
+            },
+            touchEnd(e, item, el) {
+                const diff = e.changedTouches[0].clientX - this.touchStartX;
+                if (diff < -100) { this.removeItem(item); } else { el.style.transform = 'translateX(0)'; }
+            },
 
             get totalDays() { const days = this.stops.reduce((acc, s) => s.start && s.end ? acc + Math.ceil((s.end - s.start) / 86400000) : acc, 0); return days > 0 ? days + ' Days' : ''; },
             get activeItemsCount() { return this.items.filter(i => i.status !== 'X').length; },
