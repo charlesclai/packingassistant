@@ -55,11 +55,15 @@
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200" x-data="{ manualInput: '' }">
                 <h2 class="font-bold mb-3 uppercase text-sm tracking-widest text-gray-400" x-text="category"></h2>
                 <ul class="space-y-1">
-                    <template x-for="item in items.filter(i => i.cat === category).sort((a,b) => b.isAuto - a.isAuto)" :key="item.id">
+                    <template x-for="(item, index) in items.filter(i => i.cat === category).sort((a,b) => b.isAuto - a.isAuto)" :key="item.id">
                         <li class="swipe-container">
                             <div class="swipe-action">🗑️</div>
-                            <div class="swipe-item flex items-center gap-3 p-2 bg-white"
+                            <div class="swipe-item flex items-center gap-2 p-2 bg-white"
                                 @touchstart="touchStart($event)" @touchmove="touchMove($event, $el)" @touchend="touchEnd($event, item, $el)">
+                                <div class="flex flex-col gap-0.5">
+                                    <button @click="moveItem(item, -1)" class="text-[10px] leading-none text-gray-400">▲</button>
+                                    <button @click="moveItem(item, 1)" class="text-[10px] leading-none text-gray-400">▼</button>
+                                </div>
                                 <span :class="{'line-through text-gray-400': item.status === '✓' || item.status === 'X', 'font-bold text-blue-600': item.isAuto && item.status === ''}" class="flex-grow">
                                     <span x-text="item.name"></span>
                                     <span x-show="item.qty > 1" x-text="' (' + item.qty + ')'" class="text-xs text-gray-400 ml-1 font-normal"></span>
@@ -131,6 +135,27 @@
                     onChange: (d) => { if(d.length === 2) { this.stops[idx].start = d[0]; this.stops[idx].end = d[1]; this.saveData(); } } 
                 }); 
             },
+
+            moveItem(item, dir) {
+                // Get all items in the same category
+                let catItems = this.items.filter(i => i.cat === item.cat);
+                // Sort them exactly as they appear in the UI: Auto items first
+                catItems.sort((a, b) => b.isAuto - a.isAuto);
+                
+                const idx = catItems.findIndex(i => i.id === item.id);
+                const newIdx = idx + dir;
+
+                if (newIdx < 0 || newIdx >= catItems.length) return;
+                
+                // Enforce Constraint: Cannot cross the border between auto and manual
+                if (item.isAuto !== catItems[newIdx].isAuto) return;
+
+                // Swap in the main items array
+                const i1 = this.items.findIndex(i => i.id === item.id);
+                const i2 = this.items.findIndex(i => i.id === catItems[newIdx].id);
+                [this.items[i1], this.items[i2]] = [this.items[i2], this.items[i1]];
+                this.saveData();
+            },
             
             getEmoji(code, prob) {
                 if (prob >= 50) return '🌧️';
@@ -174,9 +199,11 @@
                     const duration = Math.ceil((s.end - s.start) / 86400000);
                     if (isStopCold) { needsPuffer = true; pantsCount += Math.ceil(duration / 2.5); } else { needsHoodie = true; shortsCount += Math.ceil(duration / 2.5); }
                 }
-                this.items = [ ...this.items.filter(i => !i.isAuto), {n: 'T-shirts', q: totalDays}, {n: 'Pants', q: Math.max(pantsCount, 0)}, {n: 'Shorts', q: Math.max(shortsCount, 0)}, {n: 'Underwear', q: totalDays}, {n: 'Socks', q: totalDays} ].filter(i => i.q > 0).map((d, i) => ({id: Date.now()+i, name: d.n, cat: 'Suitcase', qty: d.q, status: '', isAuto: true}));
-                if (needsPuffer) this.items.push({id: Date.now()+99, name: 'Puffer Jacket', cat: 'Backpack', qty: 1, status: '', isAuto: true});
-                if (needsHoodie) this.items.push({id: Date.now()+100, name: 'Light Hoodie', cat: 'Backpack', qty: 1, status: '', isAuto: true});
+                const manualItems = this.items.filter(i => !i.isAuto);
+                const autoItems = [ {n: 'T-shirts', q: totalDays}, {n: 'Pants', q: Math.max(pantsCount, 0)}, {n: 'Shorts', q: Math.max(shortsCount, 0)}, {n: 'Underwear', q: totalDays}, {n: 'Socks', q: totalDays} ].filter(i => i.q > 0).map((d, i) => ({id: Date.now()+i, name: d.n, cat: 'Suitcase', qty: d.q, status: '', isAuto: true}));
+                if (needsPuffer) autoItems.push({id: Date.now()+99, name: 'Puffer Jacket', cat: 'Backpack', qty: 1, status: '', isAuto: true});
+                if (needsHoodie) autoItems.push({id: Date.now()+100, name: 'Light Hoodie', cat: 'Backpack', qty: 1, status: '', isAuto: true});
+                this.items = [...manualItems, ...autoItems];
                 this.loading = false; this.saveData();
             },
 
