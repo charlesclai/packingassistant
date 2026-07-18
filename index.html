@@ -40,7 +40,10 @@
             <template x-for="(stop, index) in stops" :key="index">
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
                     <input type="text" x-model="stop.city" @change="saveData()" class="w-full p-3 text-base border rounded-lg" placeholder="Enter city...">
-                    <input type="text" :id="'date-input-' + index" x-model="stop.dateRange" class="w-full p-3 text-base border rounded-lg bg-white" placeholder="Select dates..." readonly>
+                    <input type="text" :id="'date-input-' + index" x-model="stop.dateRange" 
+                           class="w-full p-3 text-base border rounded-lg bg-white" 
+                           placeholder="Select dates..." readonly 
+                           autocomplete="off" aria-autocomplete="none">
                     <button x-show="index > 0" @click="removeStop(index)" class="w-full p-2 text-red-500 font-bold text-sm bg-red-50 rounded-lg">Remove Stop</button>
                 </div>
             </template>
@@ -137,20 +140,15 @@
             },
 
             moveItem(item, dir) {
-                // Get all items in the same category
                 let catItems = this.items.filter(i => i.cat === item.cat);
-                // Sort them exactly as they appear in the UI: Auto items first
                 catItems.sort((a, b) => b.isAuto - a.isAuto);
                 
                 const idx = catItems.findIndex(i => i.id === item.id);
                 const newIdx = idx + dir;
 
                 if (newIdx < 0 || newIdx >= catItems.length) return;
-                
-                // Enforce Constraint: Cannot cross the border between auto and manual
                 if (item.isAuto !== catItems[newIdx].isAuto) return;
 
-                // Swap in the main items array
                 const i1 = this.items.findIndex(i => i.id === item.id);
                 const i2 = this.items.findIndex(i => i.id === catItems[newIdx].id);
                 [this.items[i1], this.items[i2]] = [this.items[i2], this.items[i1]];
